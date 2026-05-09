@@ -81,7 +81,7 @@ function EnvHost() {
             ) {
                 setRunning(false)
             }
-        }, 500)
+        }, 1000)
 
         return () => clearInterval(timer)
     }, [running, tick])
