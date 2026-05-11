@@ -4,7 +4,7 @@ import type {
   EnvironmentInitState,
   EnvironmentRoundState,
 } from "../types/EnvironmentType"
-import { decideAction } from "../utils/decideAction"
+import { decideAll } from "./decisionProcessing/decisionPipeline"
 
 /** 单 agent 行为历史，结构与 store 一致 */
 export interface AgentAction {
@@ -55,10 +55,7 @@ export function createRoundContext(state: SimulationStateSnapshot): RoundContext
 
 export function resolveRoundActions(context: RoundContext): ResolvedAction[] {
   const { agents, envInit, envRound } = context
-  return agents.map(agent => ({
-    id: agent.id,
-    action: decideAction(agent, agents, envInit, envRound),
-  }))
+  return decideAll(agents, envInit, envRound)
 }
 
 export function recordAgentActions(

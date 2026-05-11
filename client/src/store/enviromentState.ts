@@ -10,7 +10,7 @@ interface EnvState{
     decrementAlive:()=>void
 }
 
- const useEnvStore =create<EnvState>((set, _get)=>({
+ const useEnvStore =create<EnvState>((set)=>({
     currentSource:0,
     TimeLeft:0,
     aliveAgent:0,
