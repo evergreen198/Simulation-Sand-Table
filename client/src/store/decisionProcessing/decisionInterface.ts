@@ -37,4 +37,4 @@ export type DecisionError =
   | { type: "EXECUTION_ERROR"; message: string }
 
 // 决策函数签名 —— 未来外部 agent 只需实现此签名
-export type DecisionFn = (input: DecisionInput) => Action
+export type DecisionFn = (input: DecisionInput) => Action|Promise<Action>

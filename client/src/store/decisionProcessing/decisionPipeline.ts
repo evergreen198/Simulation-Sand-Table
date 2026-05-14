@@ -25,13 +25,13 @@ const builtinDecision: DecisionFn = (input: DecisionInput): Action => {
 // 后期要切换决策引擎时，只需：
 //   1. 实现 DecisionFn 签名的函数
 //   2. 调用 runDecisionPipeline(input, myDecisionFn)
-export function runDecisionPipeline(
+export async function runDecisionPipeline(
   input: DecisionInput,
   decisionFn: DecisionFn = builtinDecision,
-): DecisionOutput {
+): Promise<DecisionOutput> {
   try {
-    const rawAction = decisionFn(input)
-    return validateDecision(input, rawAction)
+    const rawAction =await decisionFn(input)
+    return  validateDecision(input, rawAction)
   } catch (err: unknown) {
     // 决策函数抛异常 → 降级为 wait
     const message = err instanceof Error ? err.message : String(err)
@@ -59,18 +59,18 @@ export function buildDecisionInput(
 
 // 便利函数：对所有存活 agent 并行决策
 // （当前为串行调用；后期如需并行需要替换为 Promise.all）
-export function decideAll(
+export async function decideAll(
   agents: Agent[],
   envInit: EnvironmentInitState,
   envRound: EnvironmentRoundState,
   decisionFn?: DecisionFn,
-): DecisionOutput[] {
-  return agents.map(agent =>
+): Promise<DecisionOutput[]> {
+  return await Promise.all(agents.map(agent =>
     runDecisionPipeline(
       buildDecisionInput(agent, agents, envInit, envRound),
       decisionFn,
     ),
-  )
+  ))
 }
 
 //最终实现：decideAll投入agents数组和decision函数

@@ -86,10 +86,10 @@ export const useStore = create<Store>()(
       }))
     },
 
-    tick: () => {
+    tick: async() => {
       const state = get()
       const context = createRoundContext(state)
-      const result = simulateRound(context)
+      const result =await simulateRound(context)
 
       set((current) => ({
         agents: result.agents,

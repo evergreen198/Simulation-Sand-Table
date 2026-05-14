@@ -53,9 +53,9 @@ export function createRoundContext(state: SimulationStateSnapshot): RoundContext
   }
 }
 
-export function resolveRoundActions(context: RoundContext): ResolvedAction[] {
+export async function resolveRoundActions(context: RoundContext):Promise<ResolvedAction[]> {
   const { agents, envInit, envRound } = context
-  return decideAll(agents, envInit, envRound)
+  return await decideAll(agents, envInit, envRound)
 }
 
 export function recordAgentActions(
@@ -216,10 +216,10 @@ export type SimulateRoundResult = {
   agentAliveRound: AgentAliveRoundData[]
 }
 
-export function simulateRound(context: RoundContext): SimulateRoundResult {
+export async function simulateRound(context: RoundContext): Promise<SimulateRoundResult> {
   const { agents, envInit, envRound, agentActions, agentAliveRound } = context
 
-  const actions = resolveRoundActions(context)
+  const actions =await resolveRoundActions(context)
   const nextAgentActions = recordAgentActions(
     agentActions,
     actions,
