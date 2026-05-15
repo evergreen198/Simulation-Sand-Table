@@ -4,6 +4,7 @@ import type {
   EnvironmentInitState,
   EnvironmentRoundState,
 } from "../types/EnvironmentType"
+import type { DecisionFn } from "./decisionProcessing/decisionInterface"
 import { decideAll } from "./decisionProcessing/decisionPipeline"
 
 /** 单 agent 行为历史，结构与 store 一致 */
@@ -53,9 +54,12 @@ export function createRoundContext(state: SimulationStateSnapshot): RoundContext
   }
 }
 
-export async function resolveRoundActions(context: RoundContext):Promise<ResolvedAction[]> {
+export async function resolveRoundActions(
+  context: RoundContext,
+  decisionFn?: DecisionFn,
+): Promise<ResolvedAction[]> {
   const { agents, envInit, envRound } = context
-  return await decideAll(agents, envInit, envRound)
+  return await decideAll(agents, envInit, envRound, decisionFn)
 }
 
 export function recordAgentActions(
@@ -216,10 +220,13 @@ export type SimulateRoundResult = {
   agentAliveRound: AgentAliveRoundData[]
 }
 
-export async function simulateRound(context: RoundContext): Promise<SimulateRoundResult> {
+export async function simulateRound(
+  context: RoundContext,
+  decisionFn?: DecisionFn,
+): Promise<SimulateRoundResult> {
   const { agents, envInit, envRound, agentActions, agentAliveRound } = context
 
-  const actions =await resolveRoundActions(context)
+  const actions = await resolveRoundActions(context, decisionFn)
   const nextAgentActions = recordAgentActions(
     agentActions,
     actions,

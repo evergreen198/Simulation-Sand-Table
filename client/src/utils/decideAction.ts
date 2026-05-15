@@ -12,7 +12,7 @@ export function decideAction(
 
   const others = agents.filter(a => a.id !== agent.id && a.state.alive)
 
-  // 👉 找目标辅助函数
+  // 找目标辅助函数
   const getWeakest = () =>
     others.reduce((a, b) =>
       a.state.resource < b.state.resource ? a : b
@@ -26,7 +26,7 @@ export function decideAction(
   const weakest = others.length ? getWeakest() : null
   const richest = others.length ? getRichest() : null
 
-  // 👉 基础参数
+  // 基础参数
   const { risk, greed, social, aggression } = agent.traits
   const { resource, hp } = agent.state
 
@@ -41,11 +41,11 @@ export function decideAction(
   const resourceScarcity =
     1 - envRound.currentSource / (envInit.resourceTotal + 1)
 
-  // 👉 信息噪声（干扰决策）
+  // 信息噪声（干扰决策）
   const noise = () => (Math.random() - 0.5) * informationNoise
 
   // =========================
-  // 🟡 gather
+  // gather
   // =========================
   const gatherScore =
     greed * envRound.currentSource * 0.1 -
@@ -54,7 +54,7 @@ export function decideAction(
     noise()
 
   // =========================
-  // 🔴 attack
+  // attack
   // =========================
   let attackScore = -Infinity
   let attackTarget: string | null = null
@@ -78,7 +78,7 @@ export function decideAction(
   }
 
   // =========================
-  // 🟢 cooperate
+  // cooperate
   // =========================
   let coopScore = -Infinity
   let coopTarget: string | null = null
@@ -103,7 +103,7 @@ export function decideAction(
   }
 
   // =========================
-  // 🔵 defend
+  // defend
   // =========================
   const defendScore =
     riskLevel * (1 - risk) +
@@ -112,7 +112,7 @@ export function decideAction(
     noise()
 
   // =========================
-  // ⚪ wait
+  // wait
   // =========================
   const waitScore =
     (agent.goal === "survive" ? 0.3 : 0) -
@@ -120,7 +120,7 @@ export function decideAction(
     noise()
 
   // =========================
-  // 🎯 选最大
+  // 选最大
   // =========================
   type ScoreRow =
     | { type: "gather"; score: number }
@@ -145,7 +145,7 @@ export function decideAction(
 
   const best = scores[0]!
 
-  // 👉 返回 Action
+  // 返回 Action
   switch (best.type) {
     case "attack":
       return { type: "attack", target: best.target }
