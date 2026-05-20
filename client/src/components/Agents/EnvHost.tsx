@@ -26,7 +26,7 @@ function EnvHost() {
     const [cooperationReward, setCooperationReward] = useState(75) // 合作收益
     const [betrayalBonus, setBetrayalBonus] = useState(75) // 背叛收益
     const [riskLevel, setRiskLevel] = useState(75) // 外部风险（灾难概率）
-    const [informationNoise, setInformationNoise] = useState(75) // 信息不确定性
+    // const [informationNoise, setInformationNoise] = useState(75) // 信息不确定性
 
     const [mode, setMode] = useState<EnvironmentInitState['mode']>('year')
     const [round, setRound] = useState<EnvironmentInitState['round']>(5)
@@ -42,7 +42,7 @@ function EnvHost() {
             cooperationReward,
             betrayalBonus,
             riskLevel,
-            informationNoise,
+            // informationNoise,
             mode,
             round,
         }),
@@ -53,7 +53,7 @@ function EnvHost() {
             cooperationReward,
             betrayalBonus,
             riskLevel,
-            informationNoise,
+            // informationNoise,
             mode,
             round,
         ],
@@ -162,13 +162,13 @@ function EnvHost() {
                     step={1}
                     className="mx-auto w-full max-w-xs py-2"
                 />
-                信息不确定性<Slider
+                {/* 信息不确定性<Slider
                     value={[informationNoise]}
                     onValueChange={(v) => setInformationNoise(v[0] ?? informationNoise)}
                     max={100}
                     step={1}
                     className="mx-auto w-full max-w-xs py-2"
-                />
+                /> */}
             </div>
 
             <CardFooter className=" w-full env-btn flex flex-wrap justify-between items-center md:flex-row">
