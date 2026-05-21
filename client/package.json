@@ -15,6 +15,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.11.0",
+    "ollama": "^0.5.17",
     "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.18.1",
     "radix-ui": "^1.4.3",

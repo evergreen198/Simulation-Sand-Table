@@ -49,19 +49,22 @@ function AgentsSetting() {
       return
     }
 
+    const socialNorm = social / 100
     const agent: Agent = {
       id,
       traits: {
         risk: risk / 100,
         greed: greed / 100,
-        social: social / 100,
+        social: socialNorm,
         aggression: aggression / 100,
+        beAcceptedBase: socialNorm,
       },
       goal,
       state: {
         resource: 0,
         hp: 10,
         alive: true,
+        beAcceptedCurrent: socialNorm,
       },
     }
     setCustomAgent(agent)

@@ -34,7 +34,7 @@ type Store = {
   setCustomAgentEnabled: (enabled: boolean) => void
   setCustomAgent: (agent: Agent | null) => void
   init: (agents: Agent[], envInit: EnvironmentInitState, totalRound: number) => void
-  tick: () => void
+  tick: () => Promise<void>
 }
 
 const createAgentActions = (agents: Agent[]): AgentAction[] =>

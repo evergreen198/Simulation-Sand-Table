@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import type {
     EnvironmentInitState,
     // EnvironmentRoundState
@@ -61,27 +61,65 @@ function EnvHost() {
 
     const init = useStore(s => s.init)
     const tick = useStore(s => s.tick)
+    const agents = useStore(s => s.agents)
+    const envRound = useStore(s => s.envRound)
+    const envInit = useStore(s => s.envInit)
 
     const initialAgents = useMemo(() => [agentA, agentB, agentC, agentD], [])
     const [running, setRunning] = useState(false)
+    const tickInFlight = useRef(false)
+
+    const buildAgentsForSim = () => {
+        const base = initialAgents.map(cloneAgent)
+        const hasCustom = customAgentEnabled && customAgent != null
+        return hasCustom ? [...base, cloneAgent(customAgent)] : base
+    }
+
+    const handleReset = () => {
+        setRunning(false)
+        tickInFlight.current = false
+        init(buildAgentsForSim(), HostSetting, round)
+    }
+
+    /** 仿真已初始化且未结束，才可从暂停恢复 */
+    const canContinue =
+        agents.length > 0 &&
+        envRound.round < envInit.round &&
+        envRound.timeLeft > 0 &&
+        envRound.aliveAgent.length > 0
+
+    const handlePauseContinue = () => {
+        if (running) {
+            setRunning(false)
+            return
+        }
+        if (canContinue) {
+            setRunning(true)
+        }
+    }
 
     // 控制仿真定时器：只有在 running=true 时才会启动 tick
     useEffect(() => {
         if (!running) return
 
         const timer = setInterval(() => {
-            tick()
-
-            // 当达到设定轮次/时间耗尽/无人存活时，自动停止仿真
-            const { envRound, envInit } = useStore.getState()
-            if (
-                envRound.round >= envInit.round ||
-                envRound.timeLeft <= 0 ||
-                envRound.aliveAgent.length === 0
-            ) {
-                setRunning(false)
-            }
-        }, 1000)
+            if (tickInFlight.current) return
+            tickInFlight.current = true
+            void tick()
+                .then(() => {
+                    const { envRound, envInit } = useStore.getState()
+                    if (
+                        envRound.round >= envInit.round ||
+                        envRound.timeLeft <= 0 ||
+                        envRound.aliveAgent.length === 0
+                    ) {
+                        setRunning(false)
+                    }
+                })
+                .finally(() => {
+                    tickInFlight.current = false
+                })
+        }, 2000)
 
         return () => clearInterval(timer)
     }, [running, tick])
@@ -177,29 +215,24 @@ function EnvHost() {
                     variant="outline"
                     className="w-1/4"
                     onClick={() => {
-                        const base = initialAgents.map(cloneAgent)
-                        const hasCustom =
-                            customAgentEnabled && customAgent != null
-                        const agentsForSim = hasCustom
-                            ? [...base, cloneAgent(customAgent)]
-                            : base
-                        init(
-                            agentsForSim,
-                            HostSetting,
-                            round,
-                        )
+                        init(buildAgentsForSim(), HostSetting, round)
                         setRunning(true)
                     }}
                 >
                     start
                 </Button>
-                <Button variant="outline" className="pause-btn w-1/4" onClick={() => setRunning(false)}>
-                    pause
+                <Button
+                    variant="outline"
+                    className="pause-btn w-1/4"
+                    disabled={agents.length === 0 || (!running && !canContinue)}
+                    onClick={handlePauseContinue}
+                >
+                    {running ? 'pause' : 'continue'}
                 </Button>
                 <Button variant="outline" className="end-btn w-1/4" onClick={() => setRunning(false)}>
                     end
                 </Button>
-                <Button variant="outline" className="end-btn w-1/4" onClick={() => setRunning(false)}>
+                <Button variant="outline" className="reset-btn w-1/4" onClick={handleReset}>
                     reset
                 </Button>
             </CardFooter>

@@ -7,11 +7,11 @@ import { ScrollArea } from "./components/ui/scroll-area"
 import '../src/App.css'
 function App() {
   return (
-    <div className="app-root flex flexrow h-screen justify-center items-center">
+    <div className="app-root flex flex-row h-screen justify-center items-center overflow-hidden">
       <ScrollArea className=" data-showing-section w-[500px] max-lg:flex-1 h-screen">
         <DataShowSection></DataShowSection>
       </ScrollArea>
-      <div className="sand-table-section min-h-full flex-auto">
+      <div className="sand-table-section h-full min-w-0 flex-1 overflow-hidden">
         <SandTableSection></SandTableSection>
       </div>
 

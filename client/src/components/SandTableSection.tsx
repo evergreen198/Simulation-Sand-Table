@@ -1,5 +1,14 @@
 import { useEffect, useRef } from "react"
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js"
+import {
+  Application,
+  Container,
+  FederatedPointerEvent,
+  Graphics,
+  Point,
+  Rectangle,
+  Text,
+  TextStyle,
+} from "pixi.js"
 import { Viewport } from "pixi-viewport"
 import type { Action } from "../types/Action"
 import type { Agent } from "../types/AgentType"
@@ -207,8 +216,8 @@ export default function SandTableSection() {
     const app = new Application()
 
     const init = async () => {
-      const rw = Math.max(1, host.clientWidth || 800)
-      const rh = Math.max(1, host.clientHeight || 600)
+      const rw = Math.max(50, host.clientWidth || 800)
+      const rh = Math.max(50, host.clientHeight || 600)
       await app.init({
         width: rw,
         height: rh,
@@ -226,28 +235,164 @@ export default function SandTableSection() {
       host.appendChild(app.canvas)
 
       const viewport = new Viewport({
-        screenWidth: host.clientWidth,
-        screenHeight: host.clientHeight,
+        screenWidth: rw,
+        screenHeight: rh,
         worldWidth: WORLD_W,
         worldHeight: WORLD_H,
         events: app.renderer.events,
         ticker: app.ticker,
+        allowPreserveDragOutside: true,
       })
 
       viewport.sortableChildren = true
       app.stage.addChild(viewport)
 
-      viewport.drag().pinch().wheel({ percent: 1.15 }).decelerate()
+      // 缩放/捏合；留白区平移走 DOM 手势（无 drag/decelerate 惯性）
+      viewport.pinch().wheel({ percent: 1.15 })
       viewport.clampZoom({ minScale: 0.15, maxScale: 4 })
+      viewport.clamp({
+        direction: "all",
+        left: true,
+        right: true,
+        top: true,
+        bottom: true,
+        underflow: "none",
+      })
+      // 平移边界由 applyViewportBounds 手动处理，避免 clamp 插件把视口弹回居中
+      viewport.plugins.pause("clamp")
       viewport.fitWorld(true)
       viewport.moveCenter(WORLD_CX, WORLD_CY)
 
-      const mapLayer = new Container()
-      mapLayer.eventMode = "none"
-      mapLayer.interactiveChildren = false
+      /** 扩展命中区域到整块画布，否则留白区无法接收 pointer 事件 */
+      const syncFullScreenHitArea = () => {
+        const rect = host.getBoundingClientRect()
+        const tl = new Point()
+        const br = new Point()
+        app.renderer.events.mapPositionToPoint(tl, rect.left, rect.top)
+        app.renderer.events.mapPositionToPoint(br, rect.right, rect.bottom)
+        const wtl = viewport.toWorld(tl)
+        const wbr = viewport.toWorld(br)
+        viewport.forceHitArea = new Rectangle(
+          Math.min(wtl.x, wbr.x),
+          Math.min(wtl.y, wbr.y),
+          Math.abs(wbr.x - wtl.x),
+          Math.abs(wbr.y - wtl.y),
+        )
+      }
+      syncFullScreenHitArea()
 
+      /** 世界框在屏幕(client)坐标下的矩形 */
+      const getWorldClientRect = () => {
+        const tl = viewport.toScreen(new Point(0, 0))
+        const br = viewport.toScreen(new Point(WORLD_W, WORLD_H))
+        return {
+          minX: Math.min(tl.x, br.x),
+          maxX: Math.max(tl.x, br.x),
+          minY: Math.min(tl.y, br.y),
+          maxY: Math.max(tl.y, br.y),
+        }
+      }
+
+      /** 是否在世界框外的留白区（使用 client 坐标，与 toScreen 一致） */
+      const isLetterboxAt = (clientX: number, clientY: number) => {
+        const r = getWorldClientRect()
+        return (
+          clientX < r.minX ||
+          clientX > r.maxX ||
+          clientY < r.minY ||
+          clientY > r.maxY
+        )
+      }
+
+      let letterboxPanActive = false
+      let clampPausedForPan = false
+      let lastClientX = 0
+      let lastClientY = 0
+
+      /** 手动边界：世界小于屏幕时用像素偏移范围；放大后用世界边界 */
+      const applyViewportBounds = () => {
+        const maxOffsetX = Math.max(
+          0,
+          viewport.screenWidth - viewport.screenWorldWidth,
+        )
+        const maxOffsetY = Math.max(
+          0,
+          viewport.screenHeight - viewport.screenWorldHeight,
+        )
+
+        if (maxOffsetX > 0 || maxOffsetY > 0) {
+          viewport.x = Math.min(maxOffsetX, Math.max(0, viewport.x))
+          viewport.y = Math.min(maxOffsetY, Math.max(0, viewport.y))
+        } else {
+          if (viewport.left < 0) viewport.x = 0
+          else if (viewport.right > viewport.worldWidth) {
+            viewport.x =
+              -viewport.worldWidth * viewport.scale.x + viewport.screenWidth
+          }
+          if (viewport.top < 0) viewport.y = 0
+          else if (viewport.bottom > viewport.worldHeight) {
+            viewport.y =
+              -viewport.worldHeight * viewport.scale.y + viewport.screenHeight
+          }
+        }
+        viewport.dirty = true
+      }
+
+      const stopLetterboxPan = () => {
+        letterboxPanActive = false
+        window.removeEventListener("pointermove", onWindowPointerMove)
+        window.removeEventListener("pointerup", onWindowPointerUp)
+        window.removeEventListener("pointercancel", onWindowPointerUp)
+        if (clampPausedForPan) {
+          applyViewportBounds()
+          clampPausedForPan = false
+        }
+      }
+
+      const onWindowPointerMove = (ev: PointerEvent) => {
+        if (!letterboxPanActive) return
+        const dx = ev.clientX - lastClientX
+        const dy = ev.clientY - lastClientY
+        viewport.x += dx
+        viewport.y += dy
+        applyViewportBounds()
+        lastClientX = ev.clientX
+        lastClientY = ev.clientY
+      }
+
+      const onWindowPointerUp = () => {
+        stopLetterboxPan()
+      }
+
+      const onWindowPointerDown = (ev: PointerEvent) => {
+        const target = ev.target as Node | null
+        const inSandTable =
+          target != null &&
+          (host === target || host.contains(target) || target === app.canvas)
+        if (!inSandTable) return
+        if (!isLetterboxAt(ev.clientX, ev.clientY)) return
+        ev.preventDefault()
+        viewport.plugins.pause("clamp")
+        clampPausedForPan = true
+        letterboxPanActive = true
+        lastClientX = ev.clientX
+        lastClientY = ev.clientY
+        window.addEventListener("pointermove", onWindowPointerMove)
+        window.addEventListener("pointerup", onWindowPointerUp)
+        window.addEventListener("pointercancel", onWindowPointerUp)
+      }
+      applyViewportBounds()
+
+      window.addEventListener("pointerdown", onWindowPointerDown, true)
+
+      viewport.on("moved", (payload: { type?: string }) => {
+        if (payload?.type === "wheel" || payload?.type === "pinch") {
+          applyViewportBounds()
+        }
+      })
+
+      const mapLayer = new Container()
       const resourceLayer = new Container()
-      resourceLayer.eventMode = "none"
 
       const haloLayer = new Container()
       const relationLayer = new Container()
@@ -257,6 +402,8 @@ export default function SandTableSection() {
       ;[mapLayer, resourceLayer, haloLayer, relationLayer, agentLayer, fxLayer].forEach(
         (c, i) => {
           c.zIndex = i
+          c.eventMode = "none"
+          c.interactiveChildren = false
         },
       )
       viewport.sortableChildren = true
@@ -325,6 +472,7 @@ export default function SandTableSection() {
         const h = Math.max(1, host.clientHeight)
         app.renderer.resize(w, h)
         viewport.resize(w, h)
+        syncFullScreenHitArea()
       })
       resizeObs.observe(host)
 
@@ -559,6 +707,8 @@ export default function SandTableSection() {
 
       return () => {
         resizeObs.disconnect()
+        stopLetterboxPan()
+        window.removeEventListener("pointerdown", onWindowPointerDown, true)
       }
     }
 
@@ -579,7 +729,8 @@ export default function SandTableSection() {
   return (
     <div
       ref={containerRef}
-      className="h-full w-full min-h-[400px] bg-[#121212]"
+      className="h-screen w-full overflow-hidden bg-[#121212]"
+      style={{ height: "100dvh" }}
     />
   )
 }

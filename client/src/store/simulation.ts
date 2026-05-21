@@ -153,6 +153,9 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
 }
 
+/** agent 血量上限 */
+const HP_MAX = 10
+
 // ════════════════════════════════════════════════════
 // applyResolvedActions ─ 八阶段结算流水线
 //
@@ -493,7 +496,7 @@ export function applyResolvedActions(
   // ═══════════════════════════════════════
   for (const agent of newAgents) {
     agent.state.resource = Math.max(0, agent.state.resource)
-    agent.state.hp = Math.max(0, agent.state.hp)
+    agent.state.hp = clamp(agent.state.hp, 0, HP_MAX)
     agent.state.beAcceptedCurrent = clamp(agent.state.beAcceptedCurrent, 0, 1)
   }
 
@@ -534,10 +537,12 @@ export function computeNextEnvRound(
     round: envRound.round + 1,
     timeLeft: envRound.timeLeft - 1,
     aliveAgent,
-    currentSource:
+    currentSource: Math.max(
+      0,
       envRound.currentSource +
-      envInit.regenerationRate / 20 -
-      agents.length * 0.5,
+        envInit.regenerationRate / 20 -
+        agents.length * 0.5,
+    ),
     coRelations,
   }
 }
