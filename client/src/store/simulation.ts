@@ -7,6 +7,9 @@ import type {
 } from "../types/EnvironmentType"
 import type { DecisionFn } from "./decisionProcessing/decisionInterface"
 import { decideAll } from "./decisionProcessing/decisionPipeline"
+import { ollamaCooperateDecisionFn } from "../OllamaAgents/OllamaAgents"
+import type { SocialMemoryEvent } from "../memoryManagement/memoTypes"
+import useAgentMemoStore from "./useAgentMemo"
 
 /** 单 agent 行为历史，结构与 store 一致 */
 export interface AgentAction {
@@ -166,19 +169,23 @@ const HP_MAX = 10
 //   envRound     — 环境回合状态（含 coRelations）
 //
 // 出参:
-//   { agents[], coRelations[] }
+//   { agents[], coRelations[], socialEvents[] }
 //
 // 临时变量:
 //   exposure     Map<id, ExposureLevel>  暴露度，函数返回即销毁
 //   shield       Set<id>                 本回合护盾标记
 //   coopAccepted Set<key>                本轮双向合作成功的 pair
 // ════════════════════════════════════════
-export function applyResolvedActions(
+export async function applyResolvedActions(
   agents: Agent[],
   actions: ResolvedAction[],
   envInit: EnvironmentInitState,
   envRound: EnvironmentRoundState,
-): { agents: Agent[]; coRelations: CoRelation[] } {
+): Promise<{
+  agents: Agent[]
+  coRelations: CoRelation[]
+  socialEvents: SocialMemoryEvent[]
+}> {
   // ── 拷贝 agents（浅复制 + state 深一层）──
   const newAgents = agents.map(a => ({
     ...a,
@@ -191,8 +198,8 @@ export function applyResolvedActions(
   // ── 环境参数缩放：UI 保持 0~100，结算层统一 ÷20 对齐 hp=10/resource=0 尺度 ──
   const scaledCompetition = envInit.competitionReward / 20
   const scaledCooperation = envInit.cooperationReward / 20
-  const scaledBetrayal    = envInit.betrayalBonus    / 20
-  const scaledRisk        = envInit.riskLevel         / 20
+  const scaledBetrayal = envInit.betrayalBonus / 20
+  const scaledRisk = envInit.riskLevel / 20
 
   // ── Phase 0 快照：Phase 6 结算统一使用上轮末值，消除顺序依赖 ──
   const resourceSnapshot = new Map(newAgents.map(a => [a.id, a.state.resource]))
@@ -208,6 +215,7 @@ export function applyResolvedActions(
   const exposure = new Map<string, ExposureLevel>()
   const shield = new Set<string>()
   const coopAccepted = new Set<string>() // key: normalized "A-B"
+  const socialEvents: SocialMemoryEvent[] = []
 
   const actionMap = new Map(actions.map(a => [a.id, a]))
 
@@ -257,15 +265,7 @@ export function applyResolvedActions(
   }
 
   // ═══════════════════════════════════════
-  // Phase 4 — 合作邀请 · target 判定
-  //
-  // 接受概率 = reputation(由 inviter 信誉决定)
-  //          + disposition(由 target 性格决定)
-  //          + relationBonus(已有合作关系加成)
-  //          + pressure(由 target 生存压力决定)
-  //
-  // inviter.beAcceptedBase × beAcceptedCurrent → "inviter 在群体中的口碑"
-  // target.social / aggression         → "target 的合作门槛"
+  // Phase 4 — 合作邀请 · 由 target 侧 LLM 决定是否接受
   // ═══════════════════════════════════════
   for (const agent of newAgents) {
     if (!agent.state.alive) continue
@@ -273,8 +273,7 @@ export function applyResolvedActions(
     if (act?.type !== "cooperate" || !act.target) continue
     const inviter = agent
     const target = agentMap.get(act.target)
-    if (target && !target.state.alive) continue
-    if (!target) continue
+    if (!target?.state.alive) continue
 
     // 规则：若 target 本轮攻击 inviter → 自动拒绝
     const targetAct = actionMap.get(target.id)?.action
@@ -282,45 +281,33 @@ export function applyResolvedActions(
       targetAct?.type === "attack" &&
       targetAct.target === inviter.id
     ) {
-      continue // 拒绝
+      continue
     }
 
-    // ── 分量 1：inviter 信誉信号（主效应）──
-    // beAcceptedBase × beAcceptedCurrent 刻画"这个 agent 在群体中的口碑"
-    // 历史上常背叛的 agent，beAcceptedCurrent 持续走低 →
-    // 越来越难发起新合作
-    const reputation =
-      inviter.traits.beAcceptedBase *
-      inviter.state.beAcceptedCurrent *
-      0.5
-
-    // ── 分量 2：target 性格过滤器（调节效应）──
-    // social 高的 target 更开放，aggression 高的更封闭
-    const disposition =
-      target.traits.social * 0.25 -
-      target.traits.aggression * 0.2
-
-    // ── 分量 3：关系历史加成（情境效应）──
-    // 已有活跃 coRelation → 信任惯性
-    const relationBonus =
-      hasActiveCoRelation(inviter.id, target.id, relMap) ? 0.35 : 0
-
-    // ── 分量 4：target 生存压力（紧急效应）──
-    // HP 越低、资源越少 → 越倾向接受合作（求生驱动），量级控制在 ~0.15
-    const hpPressure = (1 - target.state.hp / 10) * 0.1
-    const resourcePressure = Math.max(0, 1 - target.state.resource / 50) * 0.05
-    const pressure = clamp(hpPressure + resourcePressure, 0, 0.15)
-
-    const acceptanceProb = clamp(
-      reputation + disposition + relationBonus + pressure,
-      0,
-      1,
-    )
-
-    if (Math.random() < acceptanceProb) {
+    if (
+      await ollamaCooperateDecisionFn({
+        target,
+        inviter,
+        envInit,
+        envRound,
+      }) === "accept"
+    ) {
       coopAccepted.add(coRelationKey(inviter.id, target.id))
-      // 发起者暴露度
       exposure.set(inviter.id, "medium")
+      socialEvents.push(
+        {
+          agentId: inviter.id,
+          pattern: "toCooperate",
+          otherAgentId: target.id,
+          round: envRound.round,
+        },
+        {
+          agentId: target.id,
+          pattern: "beCooperate",
+          otherAgentId: inviter.id,
+          round: envRound.round,
+        },
+      )
     }
   }
 
@@ -373,6 +360,38 @@ export function applyResolvedActions(
     attacker.state.resource += gain
     target.state.resource -= targetLoss
     target.state.hp -= targetLoss * 0.2
+
+    if (isBetrayal) {
+      socialEvents.push(
+        {
+          agentId: attacker.id,
+          pattern: "toBetray",
+          otherAgentId: target.id,
+          round: envRound.round,
+        },
+        {
+          agentId: target.id,
+          pattern: "beBetray",
+          otherAgentId: attacker.id,
+          round: envRound.round,
+        },
+      )
+    } else {
+      socialEvents.push(
+        {
+          agentId: attacker.id,
+          pattern: "toAttack",
+          otherAgentId: target.id,
+          round: envRound.round,
+        },
+        {
+          agentId: target.id,
+          pattern: "beAttack",
+          otherAgentId: attacker.id,
+          round: envRound.round,
+        },
+      )
+    }
 
     exposure.set(attacker.id, "high")
   }
@@ -500,7 +519,11 @@ export function applyResolvedActions(
     agent.state.beAcceptedCurrent = clamp(agent.state.beAcceptedCurrent, 0, 1)
   }
 
-  return { agents: newAgents, coRelations: Array.from(relMap.values()) }
+  return {
+    agents: newAgents,
+    coRelations: Array.from(relMap.values()),
+    socialEvents,
+  }
 }
 
 // ─────────────────────────────────────────────────
@@ -540,8 +563,8 @@ export function computeNextEnvRound(
     currentSource: Math.max(
       0,
       envRound.currentSource +
-        envInit.regenerationRate / 20 -
-        agents.length * 0.5,
+      envInit.regenerationRate / 20 -
+      agents.length * 0.5,
     ),
     coRelations,
   }
@@ -611,13 +634,26 @@ export async function simulateRound(
   )
 
   console.log(`\n[Simulation] Round ${envRound.round}`)
-  console.log("[Simulation] actions:", agentActions)
+  console.log("[Simulation] actions:", actions)
   console.log("[Simulation] state(before):", serializeAgents(agents))
 
-  const { agents: afterActions, coRelations: nextCoRelations } =
-    applyResolvedActions(agents, actions, envInit, envRound)
+  const { agents: afterActions, coRelations: nextCoRelations, socialEvents } =
+    await applyResolvedActions(agents, actions, envInit, envRound)
 
+  const memo = useAgentMemoStore.getState()
   const newAgents = applySurvivalRules(afterActions)
+  console.log("[Simulation] socialEvents:", socialEvents)
+  console.log("[Simulation] agentsMemory:", memo.agentsMemory)
+
+  memo.updateAllMemoState(
+    {
+      agentsBefore: agents,
+      agentsAfter: newAgents,
+      actions,
+      round: envRound.round
+    },
+    socialEvents,
+  )
   const nextEnvRound = computeNextEnvRound(
     envRound,
     envInit,

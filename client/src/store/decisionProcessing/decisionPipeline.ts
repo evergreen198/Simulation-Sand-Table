@@ -4,7 +4,7 @@ import type { EnvironmentInitState, EnvironmentRoundState } from "../../types/En
 import { decideAction } from "../../utils/decideAction"
 import type { DecisionFn, DecisionInput, DecisionOutput } from "./decisionInterface"
 import { fallback, validateDecision } from "./decisionValidator"
-
+import { ollamaCooperateDecisionFn,ollamaDecisionFn } from "../../OllamaAgents/OllamaAgents"
 // ============================================================
 // 内置基于评分函数的决策引擎（旧 decideAction 的封装）
 // 后期可替换为外部 agent 决策（LLM / API / 脚本），
@@ -66,11 +66,27 @@ export async function decideAll(
   decisionFn?: DecisionFn,
 ): Promise<DecisionOutput[]> {
   return await Promise.all(agents.map(agent =>
+    agent.state.alive ?
     runDecisionPipeline(
       buildDecisionInput(agent, agents, envInit, envRound),
       decisionFn,
-    ),
+    ):{
+      id: agent.id,
+      action: { type: "dead" },
+      status: "success",
+      runtimeStatus: "dead",
+    },
   ))
 }
 
 //最终实现：decideAll投入agents数组和decision函数
+
+//======target接受inviter邀请决策函数======
+// export async function decideAcceptInvite(
+//   inviter: Agent,
+//   target: Agent,
+//   envInit: EnvironmentInitState,
+//   envRound: EnvironmentRoundState,
+// ): Promise<'accept' | 'reject'> {
+//   return await 
+// }

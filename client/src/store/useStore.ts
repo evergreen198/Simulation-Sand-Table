@@ -11,7 +11,10 @@ import type {
   SourceLineData,
 } from "./simulation"
 import { createRoundContext, simulateRound } from "./simulation"
-
+import { ollamaDecisionFn } from "../OllamaAgents/OllamaAgents"
+import type {AgentLLMConfig} from "../OllamaAgents/OllamaAgentsSetting"
+import { agentLLMMap } from "../OllamaAgents/OllamaAgentsSetting"
+import useAgentMemoStore from "./useAgentMemo"
 /** 深拷贝参与仿真的 Agent，避免改写模板对象 */
 export function cloneAgent(a: Agent): Agent {
   return structuredClone(a)
@@ -33,6 +36,7 @@ type Store = {
   customAgent: Agent | null
   setCustomAgentEnabled: (enabled: boolean) => void
   setCustomAgent: (agent: Agent | null) => void
+  setCustonOllama: (id: string, config: AgentLLMConfig) => void
   init: (agents: Agent[], envInit: EnvironmentInitState, totalRound: number) => void
   tick: () => Promise<void>
 }
@@ -65,7 +69,11 @@ export const useStore = create<Store>()(
     customAgent: null,
     setCustomAgentEnabled: (enabled) => set({ customAgentEnabled: enabled }),
     setCustomAgent: (agent) => set({ customAgent: agent }),
+    setCustonOllama: (id: string, config: AgentLLMConfig) => {
+      agentLLMMap[id] = config
+    },
     init: (agents, envInit, totalRound) => {
+      useAgentMemoStore.getState().init(agents.map((a) => a.id))
       set(() => ({
         agents,
         envInit,
@@ -91,7 +99,7 @@ export const useStore = create<Store>()(
     tick: async() => {
       const state = get()
       const context = createRoundContext(state)
-      const result =await simulateRound(context)
+      const result =await simulateRound(context,ollamaDecisionFn)
 
       set((current) => ({
         agents: result.agents,

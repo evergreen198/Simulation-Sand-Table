@@ -4,6 +4,10 @@ export type AgentLLMConfig = {
   systemPrompt: string
 }
 
+export const agentEnv={
+  
+}
+
 export const agentLLMMap: Record<string, AgentLLMConfig> = {
   A: {
     model: "qwen2.5:3b",

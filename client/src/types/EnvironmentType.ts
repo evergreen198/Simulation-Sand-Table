@@ -20,10 +20,7 @@ export interface CoRelation {
     agentB: string
     /** 建立回合 */
     establishedRound: number
-    /** 关系在此回合（含）之前有效。
-     *  例如 round=5 建立，持续 2 轮：
-     *    establishedRound=5, validUntilRound=6
-     *    → 在 round 5、6 有效，round=7 起 validUntilRound < 7 → 过期 */
+
     validUntilRound: number
     /** 当前是否有效 */
     active: boolean

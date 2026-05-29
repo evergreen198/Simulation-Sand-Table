@@ -3,7 +3,12 @@ import { useStore } from "../../store/useStore"
 import type { Agent } from "../../types/AgentType"
 
 function getColor(value: number) {
-  return `rgba(255,0,0,${value / 100})`
+  const t = value / 100
+  const r = Math.round(99 + (129 - 99) * t)
+  const g = Math.round(102 + (140 - 102) * t)
+  const b = Math.round(241 + (248 - 241) * t)
+  const a = 0.15 + t * 0.75
+  return `rgba(${r},${g},${b},${a})`
 }
 
 export default function Heatmap() {
@@ -45,7 +50,8 @@ export default function Heatmap() {
             x={(i + 1) * cell + cell / 2}
             y={cell / 2}
             textAnchor="middle"
-            fontSize={12}
+            fontSize={11}
+            fill="#a1a1aa"
           >
             {m}
           </text>
@@ -57,7 +63,8 @@ export default function Heatmap() {
             x={cell / 2}
             y={(i + 1) * cell + cell / 2}
             textAnchor="middle"
-            fontSize={12}
+            fontSize={11}
+            fill="#a1a1aa"
           >
             {m}
           </text>
@@ -71,7 +78,8 @@ export default function Heatmap() {
             width={cell}
             height={cell}
             fill={getColor(d.value)}
-            stroke="#222"
+            stroke="#27272a"
+            rx={2}
           />
         ))}
       </svg>

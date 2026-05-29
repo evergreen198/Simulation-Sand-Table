@@ -3,11 +3,14 @@ import { useStore } from '../../store/useStore';
 import { useEffect, useState, type ComponentProps } from 'react';
 
 const margin = {
-  top: 20,
-  right: 30,
-  left: -20,
-  bottom: 25,
-};
+  top: 12,
+  right: 36,
+  left: -8,
+  bottom: 8,
+}
+
+const AXIS = { stroke: "#52525b", fontSize: 10, fill: "#a1a1aa" }
+const BAR_FILL = "#818cf8"
 // #endregion
 
 const formatAxisTick = (value: number | string): string => `${value}`
@@ -28,7 +31,7 @@ const renderCustomBarLabel = (props: {
     <text
       x={x + width + 6}
       y={y + height / 2}
-      fill="#666"
+      fill="#a1a1aa"
       textAnchor="start"
       dominantBaseline="middle"
     >{`${value ?? ""}`}</text>
@@ -49,25 +52,31 @@ export default function CustomizeLabels() {
   
   return (
     <BarChart
-      width={325}
-      height={200}
+      width={420}
+      height={Math.max(120, data.length * 36)}
       data={data}
       margin={margin}
-      layout="vertical"  // 关键：设置为垂直布局，交换X/Y轴
+      layout="vertical"
     >
       <XAxis
-        type="number"  // X轴现在显示数值
-        label={{ position: 'insideBottom', value: '存活周期', offset: -5 }}
+        type="number"
+        tick={AXIS}
+        axisLine={{ stroke: "#3f3f46" }}
+        tickLine={false}
       />
       <YAxis
-        type="category"  // Y轴现在显示分类名称
+        type="category"
         dataKey="name"
+        tick={AXIS}
+        axisLine={false}
+        tickLine={false}
         tickFormatter={formatAxisTick}
-        label={{ position: 'insideTopLeft', value: 'YAxis title', angle: -90, dy: 60 }}
+        width={28}
       />
       <Bar
         dataKey="aliveRond"
-        fill="#8884d8"
+        fill={BAR_FILL}
+        radius={[0, 3, 3, 0]}
         label={
           renderCustomBarLabel as unknown as ComponentProps<
             typeof Bar

@@ -3,6 +3,7 @@ import {
   Application,
   Container,
   FederatedPointerEvent,
+  FillGradient,
   Graphics,
   Point,
   Rectangle,
@@ -25,9 +26,68 @@ const WORLD_CY = WORLD_H / 2
  * 实现基于现有 pixi.js v8 API（与仓库内 ST-copy 一致）；升级依赖后如遇类型差异再微调即可。
  */
 
+/** 与 DataShowSection 一致的低饱和未来感色板 */
 const AGENT_PALETTE = [
-  0xe74c3c, 0x3498db, 0x2ecc71, 0x9b59b6, 0xf39c12, 0x1abc9c, 0xe91e63,
+  0xf472b6, 0x38bdf8, 0x34d399, 0xa78bfa, 0xfbbf24, 0x2dd4bf, 0xfb923c,
 ]
+
+const COLOR_HALO_DEFEND = 0x818cf8
+const COLOR_HALO_WAIT = 0x34d399
+const COLOR_HALO_GATHER = 0xfbbf24
+
+function createWorldBackgroundGradient() {
+  return new FillGradient({
+    type: "radial",
+    center: { x: 0.5, y: 0.5 },
+    innerCenter: { x: 0.5, y: 0.5 },
+    innerRadius: 0,
+    outerCenter: { x: 0.5, y: 0.5 },
+    outerRadius: 0.72,
+    colorStops: [
+      { offset: 0, color: "#1a1a22" },
+      { offset: 0.45, color: "#121218" },
+      { offset: 1, color: "#09090b" },
+    ],
+    textureSpace: "local",
+  })
+}
+
+function drawSubtleGrid(g: Graphics) {
+  const step = 80
+  for (let x = 0; x <= WORLD_W; x += step) {
+    for (let y = 0; y <= WORLD_H; y += step) {
+      g.circle(x, y, 0.75)
+      g.fill({ color: 0xffffff, alpha: 0.055 })
+    }
+  }
+}
+
+function drawWorldBoundary(g: Graphics) {
+  g.rect(0, 0, WORLD_W, WORLD_H)
+  g.stroke({ width: 1, color: 0xffffff, alpha: 0.1 })
+  g.rect(-3, -3, WORLD_W + 6, WORLD_H + 6)
+  g.stroke({ width: 1, color: 0x818cf8, alpha: 0.06 })
+}
+
+function drawResourcePool(g: Graphics, poolR: number, t: number) {
+  const breath = 0.94 + Math.sin(t * 1.6) * 0.06
+  const r = poolR * breath
+  const layers = [
+    { scale: 1.38, alpha: 0.04, color: 0x818cf8 },
+    { scale: 1.22, alpha: 0.07, color: 0x6366f1 },
+    { scale: 1.08, alpha: 0.1, color: 0xfbbf24 },
+  ]
+  for (const layer of layers) {
+    g.circle(WORLD_CX, WORLD_CY, r * layer.scale)
+    g.fill({ color: layer.color, alpha: layer.alpha * breath })
+  }//TODO改颜色
+  g.circle(WORLD_CX, WORLD_CY, r)
+  g.fill({ color: 0xfbbf24, alpha: 0.22 + Math.sin(t * 2.1) * 0.06 })
+  g.circle(WORLD_CX, WORLD_CY, r * 0.42)
+  g.fill({ color: 0x818cf8, alpha: 0.38 + Math.sin(t * 2.5 + 1) * 0.08 })
+  g.circle(WORLD_CX, WORLD_CY, r)
+  g.stroke({ width: 1, color: 0xe0e7ff, alpha: 0.18 })
+}
 
 function hashId(id: string): number {
   let h = 0
@@ -411,22 +471,15 @@ export default function SandTableSection() {
 
       const mapBg = new Graphics()
       mapBg.rect(0, 0, WORLD_W, WORLD_H)
-      mapBg.fill(0x1e1e1e)
+      mapBg.fill(createWorldBackgroundGradient())
       mapLayer.addChild(mapBg)
 
       const grid = new Graphics()
-      const step = 40
-      for (let x = 0; x <= WORLD_W; x += step) {
-        for (let y = 0; y <= WORLD_H; y += step) {
-          grid.circle(x, y, 1.2)
-          grid.fill({ color: 0x3a3a3a, alpha: 0.55 })
-        }
-      }
+      drawSubtleGrid(grid)
       mapLayer.addChild(grid)
 
       const boundary = new Graphics()
-      boundary.rect(0, 0, WORLD_W, WORLD_H)
-      boundary.stroke({ width: 3, color: 0x7f8c8d, alpha: 0.95 })
+      drawWorldBoundary(boundary)
       mapLayer.addChild(boundary)
 
       const poolGfx = new Graphics()
@@ -487,9 +540,7 @@ export default function SandTableSection() {
         const refMax = Math.max(envInit.resourceTotal, envRound.currentSource, 1)
         const poolR = poolRadius(envRound.currentSource, refMax)
         poolGfx.clear()
-        poolGfx.circle(WORLD_CX, WORLD_CY, poolR)
-        poolGfx.fill({ color: 0xffcc00, alpha: 0.92 })
-        poolGfx.stroke({ width: 2, color: 0xffee88, alpha: 0.35 })
+        drawResourcePool(poolGfx, poolR, t)
 
         const actionMap =
           envRound.round > 0
@@ -518,10 +569,10 @@ export default function SandTableSection() {
           const my = (y0 + y1) / 2
           gatherLineGfx.moveTo(x0, y0)
           gatherLineGfx.lineTo(mx, my)
-          gatherLineGfx.stroke({ width: 6, color: 0xffdd44, alpha: 0.88 })
+          gatherLineGfx.stroke({ width: 4, color: COLOR_HALO_GATHER, alpha: 0.55 })
           gatherLineGfx.moveTo(mx, my)
           gatherLineGfx.lineTo(x1, y1)
-          gatherLineGfx.stroke({ width: 6, color: col, alpha: 0.88 })
+          gatherLineGfx.stroke({ width: 4, color: col, alpha: 0.72 })
         }
 
         coopGfx.clear()
@@ -543,8 +594,8 @@ export default function SandTableSection() {
           coopGfx.quadraticCurveTo(cx, cy, pb.x, pb.y)
           coopGfx.stroke({
             width: 3,
-            color: 0x58d68d,
-            alpha: 0.35 + Math.sin(coopPhase) * 0.12,
+            color: 0x34d399,
+            alpha: 0.28 + Math.sin(coopPhase) * 0.1,
           })
         }
 
@@ -570,7 +621,7 @@ export default function SandTableSection() {
           const y2 = pb.y - uy * shorten
           attackGfx.moveTo(x1, y1)
           attackGfx.lineTo(x2, y2)
-          attackGfx.stroke({ width: 3, color: 0xe74c3c, alpha: 0.95 })
+          attackGfx.stroke({ width: 2, color: 0xf472b6, alpha: 0.85 })
           const ah = 14
           const aw = 10
           const bx = x2
@@ -579,7 +630,7 @@ export default function SandTableSection() {
           attackGfx.lineTo(bx - ux * ah + (-uy) * aw, by - uy * ah + ux * aw)
           attackGfx.lineTo(bx - ux * ah - (-uy) * aw, by - uy * ah - ux * aw)
           attackGfx.closePath()
-          attackGfx.fill({ color: 0xff4444, alpha: 1 })
+          attackGfx.fill({ color: 0xf472b6, alpha: 0.9 })
         }
 
         const idsUsed = new Set<string>()
@@ -627,9 +678,9 @@ export default function SandTableSection() {
                   : 1 - Math.sin(t * 5) * 0.06
             const baseR = rBody + 14
             const haloR = baseR * pulse
-            let hc = 0x3498db
-            if (hk === "wait") hc = 0x2ecc71
-            if (hk === "gather") hc = 0xf4d03f
+            let hc = COLOR_HALO_DEFEND
+            if (hk === "wait") hc = COLOR_HALO_WAIT
+            if (hk === "gather") hc = COLOR_HALO_GATHER
             halo.circle(0, 0, haloR)
             halo.stroke({
               width: hk === "gather" ? 5 : 4,
@@ -641,7 +692,7 @@ export default function SandTableSection() {
           body.clear()
           if (!agent.state.alive) {
             body.circle(0, 0, rBody)
-            body.fill({ color: 0x777777, alpha: 0.85 })
+            body.fill({ color: 0x52525b, alpha: 0.7 })
             halo.clear()
           } else {
             let alpha = 1
@@ -729,7 +780,7 @@ export default function SandTableSection() {
   return (
     <div
       ref={containerRef}
-      className="h-screen w-full overflow-hidden bg-[#121212]"
+      className="h-screen w-full overflow-hidden bg-[#09090b]"
       style={{ height: "100dvh" }}
     />
   )
