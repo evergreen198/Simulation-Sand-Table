@@ -268,13 +268,16 @@ export async function applyResolvedActions(
   // Phase 4 — 合作邀请 · 由 target 侧 LLM 决定是否接受
   // ═══════════════════════════════════════
   for (const agent of newAgents) {
+    
     if (!agent.state.alive) continue
     const act = actionMap.get(agent.id)?.action
     if (act?.type !== "cooperate" || !act.target) continue
+    console.log(agent.id,'对',act.target,'发起合作邀请');
+
     const inviter = agent
     const target = agentMap.get(act.target)
     if (!target?.state.alive) continue
-
+    console.log(target.id,'对',inviter.id,'的邀请做出回应');
     // 规则：若 target 本轮攻击 inviter → 自动拒绝
     const targetAct = actionMap.get(target.id)?.action
     if (
@@ -283,32 +286,36 @@ export async function applyResolvedActions(
     ) {
       continue
     }
-
+    const response=await ollamaCooperateDecisionFn({
+      target,
+      inviter,
+      envInit,
+      envRound,
+    })
     if (
-      await ollamaCooperateDecisionFn({
-        target,
-        inviter,
-        envInit,
-        envRound,
-      }) === "accept"
+      response === "accept"
     ) {
+      console.log(inviter.id,'和',target.id,'达成合作');
       coopAccepted.add(coRelationKey(inviter.id, target.id))
+      upsertCoRelation(inviter.id, target.id, envRound.round, relMap)
       exposure.set(inviter.id, "medium")
       socialEvents.push(
         {
           agentId: inviter.id,
-          pattern: "toCooperate",
+          pattern: "cooperate_to",
           otherAgentId: target.id,
           round: envRound.round,
         },
         {
           agentId: target.id,
-          pattern: "beCooperate",
+          pattern: "cooperate_by",
           otherAgentId: inviter.id,
           round: envRound.round,
         },
       )
     }
+    console.log(inviter.id,'和',target.id,'合作失败',response);
+    
   }
 
   // ═══════════════════════════════════════
@@ -365,13 +372,13 @@ export async function applyResolvedActions(
       socialEvents.push(
         {
           agentId: attacker.id,
-          pattern: "toBetray",
+          pattern: "betray_to",
           otherAgentId: target.id,
           round: envRound.round,
         },
         {
           agentId: target.id,
-          pattern: "beBetray",
+          pattern: "betray_by",
           otherAgentId: attacker.id,
           round: envRound.round,
         },
@@ -380,13 +387,13 @@ export async function applyResolvedActions(
       socialEvents.push(
         {
           agentId: attacker.id,
-          pattern: "toAttack",
+          pattern: "attack_to",
           otherAgentId: target.id,
           round: envRound.round,
         },
         {
           agentId: target.id,
-          pattern: "beAttack",
+          pattern: "attack_by",
           otherAgentId: attacker.id,
           round: envRound.round,
         },
@@ -411,6 +418,7 @@ export async function applyResolvedActions(
   for (const rel of relMap.values()) {
     if (!rel.active) continue
     if (rel.validUntilRound < envRound.round) continue
+    if (rel.establishedRound === envRound.round) continue
     const A = agentMap.get(rel.agentA)
     const B = agentMap.get(rel.agentB)
     if (!A?.state.alive || !B?.state.alive) continue
@@ -640,12 +648,10 @@ export async function simulateRound(
   const { agents: afterActions, coRelations: nextCoRelations, socialEvents } =
     await applyResolvedActions(agents, actions, envInit, envRound)
 
-  const memo = useAgentMemoStore.getState()
   const newAgents = applySurvivalRules(afterActions)
   console.log("[Simulation] socialEvents:", socialEvents)
-  console.log("[Simulation] agentsMemory:", memo.agentsMemory)
 
-  memo.updateAllMemoState(
+  useAgentMemoStore.getState().updateAllMemoState(
     {
       agentsBefore: agents,
       agentsAfter: newAgents,
@@ -654,6 +660,8 @@ export async function simulateRound(
     },
     socialEvents,
   )
+  console.log("[Simulation] agentsMemory:", useAgentMemoStore.getState().agentsMemory)
+
   const nextEnvRound = computeNextEnvRound(
     envRound,
     envInit,

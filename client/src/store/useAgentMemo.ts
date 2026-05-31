@@ -53,39 +53,38 @@ const useAgentMemoStore = create<AgentMemoState>()(
                         e,
                     ])
                 }
-                return {
-                    agentsMemory: state.agentsMemory.map((mem) => {
-                        const before = input.agentsBefore.find((a) => a.id === mem.agentId)
-                        const after = input.agentsAfter.find((a) => a.id === mem.agentId)
-                        const resolved = input.actions.find((a) => a.id === mem.agentId)
-                        if (!before || !after || !resolved) return mem
-                        //TODO使用map将复杂度降为O(n+m)
-
-
-
-                        const forAgent = eventsByAgentId.get(mem.agentId) ?? []
-                        let social = mem.socialMemory
-                        for (const e of forAgent) {
-                            social = updateCooperateMemory(
-                                e.pattern,
-                                e.otherAgentId,
-                                e.round,
-                                social,
-                            )
-                        }
-                        return {
-                            ...mem,
-                            roundMemory: updateAgentRoundMemory(
-                                mem.roundMemory,
-                                before,
-                                after,
-                                resolved.action,
-                                input.round,
-                            ),
-                            socialMemory: social,
-                        }
-                    }),
-                }
+                const nextMemory = state.agentsMemory.map((mem) => {
+                    const forAgent = eventsByAgentId.get(mem.agentId) ?? []
+                    let social = mem.socialMemory
+                    for (const e of forAgent) {
+                        social = updateCooperateMemory(
+                            e.pattern,
+                            e.otherAgentId,
+                            e.round,
+                            social,
+                        )
+                    }
+                    const before = input.agentsBefore.find((a) => a.id === mem.agentId)
+                    const after = input.agentsAfter.find((a) => a.id === mem.agentId)
+                    const resolved = input.actions.find((a) => a.id === mem.agentId)
+                    if (!before || !after || !resolved) {
+                        return forAgent.length > 0
+                            ? { ...mem, socialMemory: social }
+                            : mem
+                    }
+                    return {
+                        ...mem,
+                        roundMemory: updateAgentRoundMemory(
+                            mem.roundMemory,
+                            before,
+                            after,
+                            resolved.action,
+                            input.round,
+                        ),
+                        socialMemory: social,
+                    }
+                })
+                return { agentsMemory: nextMemory }
             })
         },
 

@@ -4,6 +4,7 @@ import type { Action } from "../types/Action"
 import type { Agent } from "../types/AgentType"
 import type { EnvironmentInitState, EnvironmentRoundState } from "../types/EnvironmentType"
 import { agentLLMMap } from "./OllamaAgentsSetting"
+import { summarizeMemo,summarizeSocialMemo } from "../memoryManagement/memoSearcher"
 
 const VALID_ACTIONS = new Set(["gather", "attack", "cooperate", "defend", "wait", "dead"])
 
@@ -85,7 +86,8 @@ export const ollamaDecisionFn: DecisionFn = async (input): Promise<Action> => {
     `- { "type": "defend" }\n` +
     `- { "type": "wait" }\n` +
     `注意：不能攻击自己，不能攻击已死亡的 agent。cooperate 对象必须存活。\n` +
-    `只返回一行纯 JSON，不要 markdown 代码块，不要任何额外文字。`
+    `只返回一行纯 JSON，不要 markdown 代码块，不要任何额外文字。`+
+    `${summarizeMemo(input.agentStage)}\n` 
 
   const response = await ollama.chat({
     model: cfg.model,
@@ -177,6 +179,8 @@ export async function ollamaCooperateDecisionFn(
     `环境剩余资源：${input.envRound.currentSource}/${input.envInit.resourceTotal}\n` +
     `你的目标：${input.target.goal}\n\n` +
     `你被 ${input.inviter.id} 邀请合作\n` +
+    `你与他之前的社交记忆：\n` +
+    `${summarizeSocialMemo(input.target, input.inviter)}\n` +
     `ta的性格参数：risk=${input.inviter.traits.risk}，greed=${input.inviter.traits.greed}，social=${input.inviter.traits.social}，aggression=${input.inviter.traits.aggression}\n` +
     `ta当前状态：HP=${input.inviter.state.hp}，资源=${input.inviter.state.resource}\n` +
     `ta的当前被接受度：${input.inviter.state.beAcceptedCurrent}\n` +
@@ -200,8 +204,11 @@ export async function ollamaCooperateDecisionFn(
 
     const rawText = response.message.content?.trim()
     if (!rawText) return "reject"
+    console.log('请求成功',rawText);
     return parseInviteDecision(rawText)
   } catch {
+    console.log('请求失败');
+    
     return "reject"
   }
 }

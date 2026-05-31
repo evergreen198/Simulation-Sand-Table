@@ -23,12 +23,12 @@ export function constructAgentMemory(agentId: string): AgentMemory {
     return {
         agentId,
         socialMemory: {
-            beAttack: [],
-            beBetray: [],
-            beCooperate: [],
-            toCooperate: [],
-            toAttack: [],
-            toBetray: [],
+            attack_by: [],
+            betray_by: [],
+            cooperate_by: [],
+            cooperate_to: [],
+            attack_to: [],
+            betray_to: [],
         },
         roundMemory: [],
     };
