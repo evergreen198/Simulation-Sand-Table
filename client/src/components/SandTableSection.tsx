@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react"
 import {
   Application,
   Container,
-  FillGradient,
   Graphics,
   Point,
   Rectangle,
@@ -34,26 +33,80 @@ const COLOR_HALO_DEFEND = 0x818cf8
 const COLOR_HALO_WAIT = 0x34d399
 const COLOR_HALO_GATHER = 0xfbbf24
 
-function createWorldBackgroundGradient() {
-  return new FillGradient({
-    type: "linear",
-    start: { x: 0, y: 0 },
-    end: { x: 0, y: 1 },
-    colorStops: [
-      { offset: 0, color: "#1a1a22" },
-      { offset: 0.45, color: "#121218" },
-      { offset: 1, color: "#09090b" },
-    ],
-    textureSpace: "local",
-  })
+type StarSpec = {
+  x: number
+  y: number
+  r: number
+  color: number
+  alpha: number
+  twinkleSpeed: number
+  twinklePhase: number
 }
 
-function drawSubtleGrid(g: Graphics) {
-  const step = 80
-  for (let x = 0; x <= WORLD_W; x += step) {
-    for (let y = 0; y <= WORLD_H; y += step) {
-      g.circle(x, y, 0.75)
-      g.fill({ color: 0xffffff, alpha: 0.055 })
+function seededRandom(seed: number) {
+  let s = seed % 2147483646
+  if (s <= 0) s += 2147483645
+  return () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+}
+
+function generateStars(count: number, seed: number): StarSpec[] {
+  const rand = seededRandom(seed)
+  const stars: StarSpec[] = []
+  for (let i = 0; i < count; i++) {
+    const bright = rand() > 0.93
+    stars.push({
+      x: rand() * WORLD_W,
+      y: rand() * WORLD_H,
+      r: bright ? 1.1 + rand() * 1.4 : 0.35 + rand() * 0.85,
+      color:
+        rand() < 0.72
+          ? 0xffffff
+          : rand() < 0.55
+            ? 0xc4d4ff
+            : 0xfff0d4,
+      alpha: bright ? 0.65 + rand() * 0.35 : 0.12 + rand() * 0.55,
+      twinkleSpeed: 0.4 + rand() * 1.8,
+      twinklePhase: rand() * Math.PI * 2,
+    })
+  }
+  return stars
+}
+
+/** 银河带状星尘：沿对角线分布的密集星点 */
+function generateGalaxyBandStars(count: number, seed: number): StarSpec[] {
+  const rand = seededRandom(seed)
+  const stars: StarSpec[] = []
+  const bandAngle = Math.PI * 0.28
+  const cos = Math.cos(bandAngle)
+  const sin = Math.sin(bandAngle)
+  for (let i = 0; i < count; i++) {
+    const along = (rand() - 0.5) * WORLD_W * 1.35
+    const perp = (rand() - 0.5) * 140 * (0.3 + rand() * 0.7)
+    stars.push({
+      x: WORLD_CX + along * cos - perp * sin,
+      y: WORLD_CY + along * sin + perp * cos,
+      r: 0.25 + rand() * 0.65,
+      color: rand() < 0.6 ? 0xe0e7ff : 0xf5d0fe,
+      alpha: 0.08 + rand() * 0.35,
+      twinkleSpeed: 0.2 + rand() * 0.9,
+      twinklePhase: rand() * Math.PI * 2,
+    })
+  }
+  return stars
+}
+
+function drawStars(g: Graphics, stars: StarSpec[], t: number) {
+  for (const s of stars) {
+    const twinkle = 0.5 + 0.5 * Math.sin(t * s.twinkleSpeed + s.twinklePhase)
+    const a = s.alpha * twinkle
+    g.circle(s.x, s.y, s.r)
+    g.fill({ color: s.color, alpha: a })
+    if (s.r > 1 && twinkle > 0.75) {
+      g.circle(s.x, s.y, s.r * 2.8)
+      g.fill({ color: s.color, alpha: a * 0.12 })
     }
   }
 }
@@ -76,7 +129,7 @@ function drawResourcePool(g: Graphics, poolR: number, t: number) {
   for (const layer of layers) {
     g.circle(WORLD_CX, WORLD_CY, r * layer.scale)
     g.fill({ color: layer.color, alpha: layer.alpha * breath })
-  }//TODO改颜色
+  }
   g.circle(WORLD_CX, WORLD_CY, r)
   g.fill({ color: 0xfbbf24, alpha: 0.22 + Math.sin(t * 2.1) * 0.06 })
   g.circle(WORLD_CX, WORLD_CY, r * 0.42)
@@ -467,12 +520,13 @@ export default function SandTableSection() {
 
       const mapBg = new Graphics()
       mapBg.rect(0, 0, WORLD_W, WORLD_H)
-      mapBg.fill(createWorldBackgroundGradient())
+      mapBg.fill(0x09090b)
       mapLayer.addChild(mapBg)
 
-      const grid = new Graphics()
-      drawSubtleGrid(grid)
-      mapLayer.addChild(grid)
+      const skyStars = generateStars(520, 7919)
+      const bandStars = generateGalaxyBandStars(280, 12011)
+      const starGfx = new Graphics()
+      mapLayer.addChild(starGfx)
 
       const boundary = new Graphics()
       drawWorldBoundary(boundary)
@@ -532,6 +586,10 @@ export default function SandTableSection() {
         const t = now / 1000
 
         syncPositions(agents)
+
+        starGfx.clear()
+        drawStars(starGfx, skyStars, t)
+        drawStars(starGfx, bandStars, t)
 
         const refMax = Math.max(envInit.resourceTotal, envRound.currentSource, 1)
         const poolR = poolRadius(envRound.currentSource, refMax)

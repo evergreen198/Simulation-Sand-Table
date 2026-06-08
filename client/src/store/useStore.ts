@@ -25,6 +25,10 @@ import {
   buildRoundFactsFromTick,
   computeWinners,
 } from "../hostSummary/hostStats"
+import {
+  computeRelationSnapshot,
+  createEmptyRelationSnapshot,
+} from "../relation/relationMatrix"
 /** 深拷贝参与仿真的 Agent，避免改写模板对象 */
 export function cloneAgent(a: Agent): Agent {
   return structuredClone(a)
@@ -70,6 +74,7 @@ export const useStore = create<Store>()(
       aliveAgent: [],
       envUpdates: [],
       coRelations: [],
+      agentRelations: { memberIds: [], matrix: [] },
     },
     agentActions: [],
     totalRound: 0,
@@ -85,6 +90,7 @@ export const useStore = create<Store>()(
     init: (agents, envInit, totalRound) => {
       useAgentMemoStore.getState().init(agents.map((a) => a.id))
       useEnvMemoStore.getState().init()
+      const memberIds = agents.map(a => a.id)
       set(() => ({
         agents,
         envInit,
@@ -95,6 +101,7 @@ export const useStore = create<Store>()(
           aliveAgent: agents.map(a => a.id),
           envUpdates: [],
           coRelations: [],
+          agentRelations: createEmptyRelationSnapshot(memberIds),
         },
         agentActions: createAgentActions(agents),
         totalRound,
@@ -113,15 +120,23 @@ export const useStore = create<Store>()(
       const context = createRoundContext(state)
       const result = await simulateRound(context, ollamaDecisionFn)
 
+      const agentsMemory = useAgentMemoStore.getState().agentsMemory
+      const memberIds = result.agents.map(a => a.id)
+
       set((current) => ({
         agents: result.agents,
-        envRound: result.envRound,
+        envRound: {
+          ...result.envRound,
+          agentRelations: computeRelationSnapshot(
+            memberIds,
+            agentsMemory,
+            result.envRound.coRelations,
+          ),
+        },
         agentActions: result.agentActions,
         sourceLineData: [...current.sourceLineData, result.sourceLineData],
         agentAliveRound: result.agentAliveRound,
       }))
-
-      const agentsMemory = useAgentMemoStore.getState().agentsMemory
       const roundFacts = buildRoundFactsFromTick(
         settledRound,
         result,

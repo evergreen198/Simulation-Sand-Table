@@ -12,6 +12,14 @@ export interface EnvironmentInitState{
 
 }
 
+/** agent 间对称关系快照；-100 敌对，0 中性，+100 友好 */
+export interface AgentRelationSnapshot {
+    /** 当前参与仿真的 agent id，顺序与 matrix 行列一致 */
+    memberIds: string[]
+    /** matrix[i][j]：memberIds[i] 与 memberIds[j] 的累积关系值（i === j 时为 0） */
+    matrix: number[][]
+}
+
 /** 合作关系存档 */
 export interface CoRelation {
     /** 标准化 key，如 "A-B"（按 id 字母序） */
@@ -36,4 +44,6 @@ export interface EnvironmentRoundState{
     envUpdates: Action[],
     /** 合作关系存档列表 */
     coRelations: CoRelation[],
+    /** 各 agent 间累积关系数值快照（热力图数据源） */
+    agentRelations: AgentRelationSnapshot,
 }

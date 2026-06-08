@@ -1,49 +1,61 @@
 import { useMemo, useEffect, useState } from "react"
 import { useStore } from "../../store/useStore"
-import type { Agent } from "../../types/AgentType"
+import type { AgentRelationSnapshot } from "../../types/EnvironmentType"
+import {
+  stageToHeatColor,
+  valueToRelationStage,
+} from "../../relation/relationMatrix"
 
-function getColor(value: number) {
-  const t = value / 100
-  const r = Math.round(99 + (129 - 99) * t)
-  const g = Math.round(102 + (140 - 102) * t)
-  const b = Math.round(241 + (248 - 241) * t)
-  const a = 0.15 + t * 0.75
-  return `rgba(${r},${g},${b},${a})`
+const EMPTY_RELATIONS: AgentRelationSnapshot = {
+  memberIds: [],
+  matrix: [],
 }
 
 export default function Heatmap() {
-  const [members, setMembers] = useState<string[]>(["A", "B", "C", "D"])
+  const [relations, setRelations] = useState<AgentRelationSnapshot>(EMPTY_RELATIONS)
 
   useEffect(() => {
-    const apply = (agents: Agent[]) => {
-      const ids = agents.map(a => a.id).filter(Boolean)
-      setMembers(ids.length > 0 ? ids : ["A", "B", "C", "D"])
-    }
-    apply(useStore.getState().agents)
-    return useStore.subscribe(s => s.agents, apply)
+    const apply = (snapshot: AgentRelationSnapshot) => setRelations(snapshot)
+    apply(useStore.getState().envRound.agentRelations)
+    return useStore.subscribe(
+      s => s.envRound.agentRelations,
+      apply,
+    )
   }, [])
 
-  const size = 300
-  const cell = size / (members.length + 1)
+  const members = relations.memberIds
+  const size = Math.min(360, Math.max(200, 56 * (members.length + 1)))
+  const cell = members.length > 0 ? size / (members.length + 1) : size
 
-  const data = useMemo(() => {
-    const result: { x: number; y: number; value: number }[] = []
-    members.forEach((_, i) => {
-      members.forEach((_, j) => {
+  const cells = useMemo(() => {
+    const result: {
+      x: number
+      y: number
+      value: number
+      rowId: string
+      colId: string
+    }[] = []
+    members.forEach((rowId, i) => {
+      members.forEach((colId, j) => {
         if (i === j) return
-        result.push({
-          x: i + 1,
-          y: j + 1,
-          value: Math.random() * 100,
-        })
+        const value = relations.matrix[i]?.[j] ?? 0
+        result.push({ x: j + 1, y: i + 1, value, rowId, colId })
       })
     })
     return result
-  }, [members])
+  }, [members, relations.matrix])
+
+  if (members.length === 0) {
+    return (
+      <p className="py-8 text-center text-[11px] text-zinc-600">
+        启动仿真后显示 agent 关系热力图
+      </p>
+    )
+  }
 
   return (
     <div>
-      <svg width={size} height={size}>
+      <svg width={size} height={size} className="mx-auto block">
         {members.map((m, i) => (
           <text
             key={`col-${m}`}
@@ -70,18 +82,25 @@ export default function Heatmap() {
           </text>
         ))}
 
-        {data.map((d, idx) => (
-          <rect
-            key={idx}
-            x={d.x * cell}
-            y={d.y * cell}
-            width={cell}
-            height={cell}
-            fill={getColor(d.value)}
-            stroke="#27272a"
-            rx={2}
-          />
-        ))}
+        {cells.map((d, idx) => {
+          const stage = valueToRelationStage(d.value)
+          return (
+            <rect
+              key={idx}
+              x={d.x * cell}
+              y={d.y * cell}
+              width={cell}
+              height={cell}
+              fill={stageToHeatColor(stage)}
+              stroke="#27272a"
+              rx={2}
+            >
+              <title>
+                {d.rowId} ↔ {d.colId}：{d.value}
+              </title>
+            </rect>
+          )
+        })}
       </svg>
     </div>
   )

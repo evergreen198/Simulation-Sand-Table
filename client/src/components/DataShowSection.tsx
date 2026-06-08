@@ -354,7 +354,7 @@ function DataShowSection() {
 
         <Panel
           title="关系热力图"
-          description="Agent 间互动强度（示意）"
+          description="Agent 间累积关系紧张度（红敌对 → 灰中性 → 绿友好）"
           icon={Grid3x3}
           className="flex flex-col items-center"
         >
