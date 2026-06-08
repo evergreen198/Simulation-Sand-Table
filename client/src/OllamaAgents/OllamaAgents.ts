@@ -3,8 +3,19 @@ import type { DecisionFn } from "../store/decisionProcessing/decisionInterface"
 import type { Action } from "../types/Action"
 import type { Agent } from "../types/AgentType"
 import type { EnvironmentInitState, EnvironmentRoundState } from "../types/EnvironmentType"
-import { agentLLMMap } from "./OllamaAgentsSetting"
-import { summarizeMemo,summarizeSocialMemo } from "../memoryManagement/memoSearcher"
+import { agentLLMMap, EnvAgent } from "./OllamaAgentsSetting"
+import { summarizeMemo, summarizeSocialMemo } from "../memoryManagement/memoSearcher"
+import type {
+  HostFinalFacts,
+  HostFinalSummary,
+  HostRoundFacts,
+  HostRoundSummary,
+  HostWinners,
+} from "../hostSummary/hostTypes"
+import {
+  fallbackFinalSummary,
+  fallbackRoundSummary,
+} from "../hostSummary/hostStats"
 
 const VALID_ACTIONS = new Set(["gather", "attack", "cooperate", "defend", "wait", "dead"])
 
@@ -210,5 +221,119 @@ export async function ollamaCooperateDecisionFn(
     console.log('请求失败');
     
     return "reject"
+  }
+}
+
+/**
+ * 每回合主持人摘要：基于代码提取的 facts 生成可读总结
+ * @param facts 本轮结构化事实（buildRoundFacts）
+ * @returns 含 summary、events、memberDynamics 的回合摘要
+ */
+export async function ollamaEnvRoundSummaryFn(
+  facts: HostRoundFacts,
+): Promise<HostRoundSummary> {
+  const userPrompt =
+    `以下是第 ${facts.round} 回合的系统事实（JSON）：\n` +
+    `${JSON.stringify(facts)}\n\n` +
+    `请根据以上事实输出 JSON：\n` +
+    `{"summary":"本轮局势一句话","events":["特殊事件描述"],"memberDynamics":{"agentId":"该成员本轮动态"}}\n` +
+    `events 应基于 roundEvents；若无特殊事件可返回空数组。memberDynamics 的 key 使用 agentSnapshots 中的 id。`
+
+  try {
+    const response = await ollama.chat({
+      model: EnvAgent.model,
+      messages: [
+        { role: "system", content: EnvAgent.systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      format: "json",
+      options: { temperature: EnvAgent.temperature },
+    })
+
+    const rawText = response.message.content?.trim()
+    if (!rawText) return fallbackRoundSummary(facts)
+
+    const parsed = parseJsonText(rawText) as Record<string, unknown>
+    const summary =
+      typeof parsed.summary === "string"
+        ? parsed.summary
+        : fallbackRoundSummary(facts).summary
+    const events = Array.isArray(parsed.events)
+      ? parsed.events.filter((e): e is string => typeof e === "string")
+      : facts.roundEvents
+    const memberDynamics: Record<string, string> = {}
+    if (parsed.memberDynamics && typeof parsed.memberDynamics === "object") {
+      for (const [k, v] of Object.entries(
+        parsed.memberDynamics as Record<string, unknown>,
+      )) {
+        if (typeof v === "string") memberDynamics[k] = v
+      }
+    }
+    if (Object.keys(memberDynamics).length === 0) {
+      Object.assign(memberDynamics, fallbackRoundSummary(facts).memberDynamics)
+    }
+
+    return { round: facts.round, summary, events, memberDynamics }
+  } catch {
+    return fallbackRoundSummary(facts)
+  }
+}
+
+/**
+ * 仿真终局主持人报告
+ * @param input.facts 全局事实（buildFinalFacts）
+ * @param input.winners 代码计算的多维胜利者，LLM 不得修改
+ */
+export async function ollamaEnvFinalSummaryFn(input: {
+  facts: HostFinalFacts
+  winners: HostWinners
+}): Promise<HostFinalSummary> {
+  const { facts, winners } = input
+  const userPrompt =
+    `以下是本次仿真的全局事实（JSON）：\n` +
+    `${JSON.stringify(facts)}\n\n` +
+    `系统已计算的胜利者（不得修改）：\n` +
+    `${JSON.stringify(winners)}\n\n` +
+    `请输出 JSON：\n` +
+    `{"globalSituation":${JSON.stringify(facts.globalSituation)},"specialEvents":[...],"winners":${JSON.stringify(winners)},"narrative":"200字以内的全局总结"}\n` +
+    `specialEvents 可基于 facts.specialEvents 归纳；winners 必须与上面完全一致。`
+
+  try {
+    const response = await ollama.chat({
+      model: EnvAgent.model,
+      messages: [
+        { role: "system", content: EnvAgent.systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      format: "json",
+      options: { temperature: EnvAgent.temperature },
+    })
+
+    const rawText = response.message.content?.trim()
+    if (!rawText) return fallbackFinalSummary(facts, winners)
+
+    const parsed = parseJsonText(rawText) as Record<string, unknown>
+    const narrative =
+      typeof parsed.narrative === "string"
+        ? parsed.narrative
+        : fallbackFinalSummary(facts, winners).narrative
+    const specialEvents = Array.isArray(parsed.specialEvents)
+      ? parsed.specialEvents.filter((e): e is string => typeof e === "string")
+      : facts.specialEvents
+
+    const gs = parsed.globalSituation
+    const globalSituation =
+      gs && typeof gs === "object" && !Array.isArray(gs)
+        ? { ...facts.globalSituation, ...(gs as HostFinalSummary["globalSituation"]) }
+        : facts.globalSituation
+
+    return {
+      globalSituation,
+      specialEvents,
+      winners,
+      narrative,
+    }
+  } catch {
+    return fallbackFinalSummary(facts, winners)
   }
 }

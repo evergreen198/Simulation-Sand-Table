@@ -11,10 +11,20 @@ import type {
   SourceLineData,
 } from "./simulation"
 import { createRoundContext, simulateRound } from "./simulation"
-import { ollamaDecisionFn } from "../OllamaAgents/OllamaAgents"
-import type {AgentLLMConfig} from "../OllamaAgents/OllamaAgentsSetting"
+import {
+  ollamaDecisionFn,
+  ollamaEnvFinalSummaryFn,
+  ollamaEnvRoundSummaryFn,
+} from "../OllamaAgents/OllamaAgents"
+import type { AgentLLMConfig } from "../OllamaAgents/OllamaAgentsSetting"
 import { agentLLMMap } from "../OllamaAgents/OllamaAgentsSetting"
 import useAgentMemoStore from "./useAgentMemo"
+import useEnvMemoStore from "./useEnvMemo"
+import {
+  buildFinalFacts,
+  buildRoundFactsFromTick,
+  computeWinners,
+} from "../hostSummary/hostStats"
 /** 深拷贝参与仿真的 Agent，避免改写模板对象 */
 export function cloneAgent(a: Agent): Agent {
   return structuredClone(a)
@@ -74,6 +84,7 @@ export const useStore = create<Store>()(
     },
     init: (agents, envInit, totalRound) => {
       useAgentMemoStore.getState().init(agents.map((a) => a.id))
+      useEnvMemoStore.getState().init()
       set(() => ({
         agents,
         envInit,
@@ -96,10 +107,11 @@ export const useStore = create<Store>()(
       }))
     },
 
-    tick: async() => {
+    tick: async () => {
       const state = get()
+      const settledRound = state.envRound.round
       const context = createRoundContext(state)
-      const result =await simulateRound(context,ollamaDecisionFn)
+      const result = await simulateRound(context, ollamaDecisionFn)
 
       set((current) => ({
         agents: result.agents,
@@ -108,6 +120,43 @@ export const useStore = create<Store>()(
         sourceLineData: [...current.sourceLineData, result.sourceLineData],
         agentAliveRound: result.agentAliveRound,
       }))
+
+      const agentsMemory = useAgentMemoStore.getState().agentsMemory
+      const roundFacts = buildRoundFactsFromTick(
+        settledRound,
+        result,
+        state.envInit,
+        result.agentActions,
+        agentsMemory,
+      )
+      const roundSummary = await ollamaEnvRoundSummaryFn(roundFacts)
+      useEnvMemoStore.getState().appendRoundSummary(roundSummary)
+
+      const ended =
+        result.envRound.round >= state.envInit.round ||
+        result.envRound.timeLeft <= 0 ||
+        result.envRound.aliveAgent.length === 0
+
+      if (ended) {
+        const after = get()
+        const finalFacts = buildFinalFacts(
+          after.agents,
+          after.envInit,
+          after.envRound,
+          after.agentActions,
+          agentsMemory,
+        )
+        const winners = computeWinners(
+          after.agents,
+          after.agentAliveRound,
+          agentsMemory,
+        )
+        const finalSummary = await ollamaEnvFinalSummaryFn({
+          facts: finalFacts,
+          winners,
+        })
+        useEnvMemoStore.getState().setFinalSummary(finalSummary)
+      }
     },
   })),
 )

@@ -4,10 +4,6 @@ export type AgentLLMConfig = {
   systemPrompt: string
 }
 
-export const agentEnv={
-  
-}
-
 export const agentLLMMap: Record<string, AgentLLMConfig> = {
   A: {
     model: "qwen2.5:3b",
@@ -65,4 +61,18 @@ export const agentLLMMap: Record<string, AgentLLMConfig> = {
       "- HP 危险或资源紧张时 defend 自保。\n" +
       "你必须返回一行纯 JSON，不要任何解释文字。",
   },
+}
+
+/** 主持人 Agent：只读观测与解说，不修改环境、不替成员决策 */
+export const EnvAgent: AgentLLMConfig = {
+  model: "qwen2.5:3b",
+  temperature: 0.4,
+  systemPrompt:
+    "你是一场多 agent 生存策略沙盘模拟的主持人观测者。\n" +
+    "你的职责：根据系统提供的结构化事实，用中文输出简洁、客观的局势摘要与解说。\n" +
+    "你必须遵守：\n" +
+    "- 不修改环境参数，不替任何 agent 做行动决策\n" +
+    "- 不编造事实中没有出现的事件或数据\n" +
+    "- 胜利者名单由系统计算，终局报告中不得修改 winners 字段\n" +
+    "- 只返回一行纯 JSON，不要 markdown 代码块，不要任何额外文字",
 }

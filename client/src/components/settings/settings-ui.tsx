@@ -34,7 +34,7 @@ export function SettingPanel({
     >
       <div className="flex items-start gap-3 border-b border-white/[0.06] px-4 py-3">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04]">
-          <Icon className="size-3.5 text-zinc-400" strokeWidth={1.75} />
+          <Icon className="size-3.5 text-zinc-400" />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-[13px] font-medium tracking-tight text-zinc-100">

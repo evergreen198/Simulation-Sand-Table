@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react"
 import {
   Application,
   Container,
-  FederatedPointerEvent,
   FillGradient,
   Graphics,
   Point,
@@ -37,12 +36,9 @@ const COLOR_HALO_GATHER = 0xfbbf24
 
 function createWorldBackgroundGradient() {
   return new FillGradient({
-    type: "radial",
-    center: { x: 0.5, y: 0.5 },
-    innerCenter: { x: 0.5, y: 0.5 },
-    innerRadius: 0,
-    outerCenter: { x: 0.5, y: 0.5 },
-    outerRadius: 0.72,
+    type: "linear",
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: 1 },
     colorStops: [
       { offset: 0, color: "#1a1a22" },
       { offset: 0.45, color: "#121218" },

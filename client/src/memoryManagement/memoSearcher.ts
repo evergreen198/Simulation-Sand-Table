@@ -1,6 +1,5 @@
 //检索agent记忆的函数
 import useAgentMemoStore from "../store/useAgentMemo"
-import type { SocialMemoryPattern } from "./memoTypes"
 import { socialMemoryPatternList } from "./memoTypes"
 import type { Agent } from "../types/AgentType"
 

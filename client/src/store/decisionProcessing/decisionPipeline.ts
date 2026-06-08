@@ -4,7 +4,6 @@ import type { EnvironmentInitState, EnvironmentRoundState } from "../../types/En
 import { decideAction } from "../../utils/decideAction"
 import type { DecisionFn, DecisionInput, DecisionOutput } from "./decisionInterface"
 import { fallback, validateDecision } from "./decisionValidator"
-import { ollamaCooperateDecisionFn,ollamaDecisionFn } from "../../OllamaAgents/OllamaAgents"
 // ============================================================
 // 内置基于评分函数的决策引擎（旧 decideAction 的封装）
 // 后期可替换为外部 agent 决策（LLM / API / 脚本），

@@ -10,6 +10,8 @@ import LineChartExample from "./ChartComponents/ResourceChart"
 import CustomizeLabels from "./ChartComponents/AliveChart"
 import RelationHeatmap from "./ChartComponents/HeatmapChart"
 import { useStore } from "../store/useStore"
+import useEnvMemoStore from "../store/useEnvMemo"
+import type { HostFinalSummary, HostRoundSummary } from "../hostSummary/hostTypes"
 import type { Agent } from "../types/AgentType"
 import type { Action } from "../types/Action"
 import type { AgentAction } from "../store/simulation"
@@ -90,7 +92,7 @@ function Panel({
     >
       <div className="flex items-start gap-3 border-b border-white/[0.06] px-4 py-3">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04]">
-          <Icon className="size-3.5 text-zinc-400" strokeWidth={1.75} />
+          <Icon className="size-3.5 text-zinc-400" />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-[13px] font-medium tracking-tight text-zinc-100">
@@ -203,11 +205,21 @@ function AgentStatCard({
   )
 }
 
+const WINNER_LABELS: Record<keyof HostFinalSummary["winners"], string> = {
+  resource: "资源胜利者",
+  survival: "生存胜利者",
+  cooperation: "合作影响力",
+  attack: "攻击压制者",
+  composite: "综合胜利者",
+}
+
 function DataShowSection() {
   const [agentsView, setAgentsView] = useState<AgentCardState[]>([])
   const [agentActions, setAgentActions] = useState<AgentAction[]>([])
   const [round, setRound] = useState(0)
   const [totalRound, setTotalRound] = useState(0)
+  const [roundSummaries, setRoundSummaries] = useState<HostRoundSummary[]>([])
+  const [finalSummary, setFinalSummary] = useState<HostFinalSummary | null>(null)
 
   useEffect(() => {
     const mapAgents = (agents: Agent[]) =>
@@ -233,13 +245,31 @@ function DataShowSection() {
     )
     const unsubRound = useStore.subscribe(st => st.envRound.round, setRound)
     const unsubTotal = useStore.subscribe(st => st.totalRound, setTotalRound)
+    const env = useEnvMemoStore.getState()
+    setRoundSummaries(env.roundSummaries)
+    setFinalSummary(env.finalSummary)
+    const unsubRoundMemo = useEnvMemoStore.subscribe(
+      st => st.roundSummaries,
+      setRoundSummaries,
+    )
+    const unsubFinalMemo = useEnvMemoStore.subscribe(
+      st => st.finalSummary,
+      setFinalSummary,
+    )
     return () => {
       unsubAgents()
       unsubActions()
       unsubRound()
       unsubTotal()
+      unsubRoundMemo()
+      unsubFinalMemo()
     }
   }, [])
+
+  const recentRoundSummaries = useMemo(
+    () => roundSummaries.slice(-3),
+    [roundSummaries],
+  )
 
   const actionMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -336,18 +366,73 @@ function DataShowSection() {
           description="主持人对本轮局势的解读"
           icon={Sparkles}
         >
-          <div className="rounded-lg border border-dashed border-white/[0.08] bg-gradient-to-b from-white/[0.02] to-transparent px-4 py-8 text-center">
-            <Sparkles
-              className="mx-auto mb-2 size-4 text-zinc-600"
-              strokeWidth={1.5}
-            />
-            <p className="text-[12px] text-zinc-500">
-              结论模块待接入
-            </p>
-            <p className="mt-1 text-[10px] text-zinc-600">
-              仿真结束后将在此展示摘要与分析
-            </p>
-          </div>
+          {roundSummaries.length === 0 && !finalSummary ? (
+            <div className="rounded-lg border border-dashed border-white/[0.08] bg-gradient-to-b from-white/[0.02] to-transparent px-4 py-8 text-center">
+              <Sparkles
+                className="mx-auto mb-2 size-4 text-zinc-600"
+                strokeWidth={1.5}
+              />
+              <p className="text-[12px] text-zinc-500">启动仿真后显示主持人摘要</p>
+            </div>
+          ) : (
+            <div className="space-y-3 text-left">
+              {recentRoundSummaries.map(item => (
+                <div
+                  key={item.round}
+                  className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5"
+                >
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                    第 {item.round} 回合
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-zinc-300">
+                    {item.summary}
+                  </p>
+                  {item.events.length > 0 ? (
+                    <ul className="mt-2 space-y-0.5 text-[11px] text-zinc-500">
+                      {item.events.map((ev, i) => (
+                        <li key={i}>· {ev}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
+
+              {finalSummary ? (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-amber-500/80">
+                    终局报告
+                  </p>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-zinc-200">
+                    {finalSummary.narrative}
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-zinc-400">
+                    <p>{finalSummary.globalSituation.resourceStatus}</p>
+                    <p>{finalSummary.globalSituation.actionRatio}</p>
+                    <p>{finalSummary.globalSituation.tension}</p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {(Object.keys(WINNER_LABELS) as (keyof HostFinalSummary["winners"])[]).map(
+                      key => (
+                        <span
+                          key={key}
+                          className="rounded border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-zinc-300"
+                        >
+                          {WINNER_LABELS[key]}：{finalSummary.winners[key]}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                  {finalSummary.specialEvents.length > 0 ? (
+                    <ul className="mt-2 max-h-32 overflow-y-auto space-y-0.5 text-[10px] text-zinc-500">
+                      {finalSummary.specialEvents.map((ev, i) => (
+                        <li key={i}>· {ev}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
         </Panel>
       </div>
     </div>
