@@ -7,7 +7,7 @@ import type {
 } from "../types/EnvironmentType"
 import type { DecisionFn } from "./decisionProcessing/decisionInterface"
 import { decideAll } from "./decisionProcessing/decisionPipeline"
-import { ollamaCooperateDecisionFn } from "../OllamaAgents/OllamaAgents"
+import { ollamaCooperateDecisionFn } from "../llmClient.ts"
 import type { SocialMemoryEvent } from "../memoryManagement/memoTypes"
 import useAgentMemoStore from "./useAgentMemo"
 

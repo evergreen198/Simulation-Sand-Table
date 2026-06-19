@@ -1,9 +1,15 @@
 {
   "devDependencies": {
-    "sass": "^1.99.0"
+    "@types/express": "^5.0.6",
+    "sass": "^1.99.0",
+    "tsx": "^4.22.4"
   },
   "dependencies": {
+    "express": "^5.2.1",
     "ollama": "^0.6.3",
     "zod": "^4.4.3"
+  },
+  "scripts": {
+    "dev": "tsx server/server.ts"
   }
 }

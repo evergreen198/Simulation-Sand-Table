@@ -12,10 +12,11 @@ import type {
 } from "./simulation"
 import { createRoundContext, simulateRound } from "./simulation"
 import {
-  ollamaDecisionFn,
+  // ollamaDecisionFn,
   ollamaEnvFinalSummaryFn,
   ollamaEnvRoundSummaryFn,
-} from "../OllamaAgents/OllamaAgents"
+} from "../llmClient.ts"
+import { ollamaDecisionFn } from "../llmClient"
 import type { AgentLLMConfig } from "../OllamaAgents/OllamaAgentsSetting"
 import { agentLLMMap } from "../OllamaAgents/OllamaAgentsSetting"
 import useAgentMemoStore from "./useAgentMemo"
