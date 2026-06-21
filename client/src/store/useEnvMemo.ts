@@ -1,7 +1,7 @@
 // 主持人轮次摘要与终局报告状态
 import { create } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
-import type { HostFinalSummary, HostRoundSummary } from "../hostSummary/hostTypes"
+import type { HostFinalSummary, HostRoundSummary } from "../../../shared/host/host-types"
 
 interface EnvMemoState {
   /** 每回合主持人摘要，按回合顺序追加 */

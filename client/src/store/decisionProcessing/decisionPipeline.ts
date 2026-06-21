@@ -1,8 +1,8 @@
-import type { Action } from "../../types/Action"
-import type { Agent } from "../../types/AgentType"
-import type { EnvironmentInitState, EnvironmentRoundState } from "../../types/EnvironmentType"
-import { decideAction } from "../../utils/decideAction"
-import type { DecisionFn, DecisionInput, DecisionOutput } from "./decisionInterface"
+import type { Action } from "../../../../shared/types/Action"
+import type { Agent } from "../../../../shared/types/AgentType"
+import type { EnvironmentInitState, EnvironmentRoundState } from "../../../../shared/types/EnvironmentType"
+import { decideAction } from "../../../../shared/utils/decideAction"
+import type { DecisionFn, DecisionInput, DecisionOutput } from "../../../../shared/llm/decision-types"
 import { fallback, validateDecision } from "./decisionValidator"
 // ============================================================
 // 内置基于评分函数的决策引擎（旧 decideAction 的封装）
@@ -29,8 +29,8 @@ export async function runDecisionPipeline(
   decisionFn: DecisionFn = builtinDecision,
 ): Promise<DecisionOutput> {
   try {
-    const rawAction =await decisionFn(input)
-    return  validateDecision(input, rawAction)
+    const rawAction = await decisionFn(input)
+    return validateDecision(input, rawAction)
   } catch (err: unknown) {
     // 决策函数抛异常 → 降级为 wait
     const message = err instanceof Error ? err.message : String(err)
@@ -47,34 +47,36 @@ export function buildDecisionInput(
   agents: Agent[],
   envInit: EnvironmentInitState,
   envRound: EnvironmentRoundState,
+  sessionId: string,
 ): DecisionInput {
   return {
     agentStage: agent,
     agents,
     envInit,
     envRound,
+    sessionId,
   }
 }
 
 // 便利函数：对所有存活 agent 并行决策
-// （当前为串行调用；后期如需并行需要替换为 Promise.all）
 export async function decideAll(
   agents: Agent[],
   envInit: EnvironmentInitState,
   envRound: EnvironmentRoundState,
+  sessionId: string,
   decisionFn?: DecisionFn,
 ): Promise<DecisionOutput[]> {
   return await Promise.all(agents.map(agent =>
     agent.state.alive ?
-    runDecisionPipeline(
-      buildDecisionInput(agent, agents, envInit, envRound),
-      decisionFn,
-    ):{
-      id: agent.id,
-      action: { type: "dead" },
-      status: "success",
-      runtimeStatus: "dead",
-    },
+      runDecisionPipeline(
+        buildDecisionInput(agent, agents, envInit, envRound, sessionId),
+        decisionFn,
+      ) : {
+        id: agent.id,
+        action: { type: "dead" },
+        status: "success",
+        runtimeStatus: "dead",
+      },
   ))
 }
 
@@ -87,5 +89,5 @@ export async function decideAll(
 //   envInit: EnvironmentInitState,
 //   envRound: EnvironmentRoundState,
 // ): Promise<'accept' | 'reject'> {
-//   return await 
+//   return await
 // }

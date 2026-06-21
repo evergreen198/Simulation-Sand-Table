@@ -1,15 +1,14 @@
-import type { Agent } from "../types/AgentType"
-import type { Action } from "../types/Action"
+import type { Agent } from "../../../shared/types/AgentType.ts"
+import type { Action } from "../../../shared/types/Action.ts"
 import type {
   CoRelation,
   EnvironmentInitState,
   EnvironmentRoundState,
-} from "../types/EnvironmentType"
-import type { DecisionFn } from "./decisionProcessing/decisionInterface"
+} from "../../../shared/types/EnvironmentType.ts"
+import type { DecisionFn } from "../../../shared/llm/decision-types.ts"
 import { decideAll } from "./decisionProcessing/decisionPipeline"
-import { ollamaCooperateDecisionFn } from "../llmClient.ts"
-import type { SocialMemoryEvent } from "../memoryManagement/memoTypes"
-import useAgentMemoStore from "./useAgentMemo"
+import { ollamaCooperateDecisionFn, commitRound } from "../llmClient.ts"
+import type { AgentMemory, SocialMemoryEvent } from "../../../shared/types/memoTypes.ts"
 
 /** 单 agent 行为历史，结构与 store 一致 */
 export interface AgentAction {
@@ -44,6 +43,8 @@ export type SimulationStateSnapshot = {
   envRound: EnvironmentRoundState
   agentActions: AgentAction[]
   agentAliveRound: AgentAliveRoundData[]
+  /** 当前局会话 id：决策与记忆提交据此定位后端该局记忆 */
+  sessionId: string
 }
 
 export type RoundContext = SimulationStateSnapshot
@@ -55,6 +56,7 @@ export function createRoundContext(state: SimulationStateSnapshot): RoundContext
     envRound: state.envRound,
     agentActions: state.agentActions,
     agentAliveRound: state.agentAliveRound,
+    sessionId: state.sessionId,
   }
 }
 
@@ -62,8 +64,8 @@ export async function resolveRoundActions(
   context: RoundContext,
   decisionFn?: DecisionFn,
 ): Promise<ResolvedAction[]> {
-  const { agents, envInit, envRound } = context
-  return await decideAll(agents, envInit, envRound, decisionFn)
+  const { agents, envInit, envRound, sessionId } = context
+  return await decideAll(agents, envInit, envRound, sessionId, decisionFn)
 }
 
 export function recordAgentActions(
@@ -181,6 +183,7 @@ export async function applyResolvedActions(
   actions: ResolvedAction[],
   envInit: EnvironmentInitState,
   envRound: EnvironmentRoundState,
+  sessionId: string,
 ): Promise<{
   agents: Agent[]
   coRelations: CoRelation[]
@@ -259,7 +262,7 @@ export async function applyResolvedActions(
     if (!agent.state.alive) continue
     const act = actionMap.get(agent.id)?.action
     if (act?.type === "gather") {
-      agent.state.resource += envRound.currentSource * 0.02
+      agent.state.resource += envRound.currentSource * 0.2 * (1 + agent.state.resource * 0.01)
       exposure.set(agent.id, "medium")
     }
   }
@@ -268,16 +271,16 @@ export async function applyResolvedActions(
   // Phase 4 — 合作邀请 · 由 target 侧 LLM 决定是否接受
   // ═══════════════════════════════════════
   for (const agent of newAgents) {
-    
+
     if (!agent.state.alive) continue
     const act = actionMap.get(agent.id)?.action
     if (act?.type !== "cooperate" || !act.target) continue
-    console.log(agent.id,'对',act.target,'发起合作邀请');
+    console.log(agent.id, '对', act.target, '发起合作邀请');
 
     const inviter = agent
     const target = agentMap.get(act.target)
     if (!target?.state.alive) continue
-    console.log(target.id,'对',inviter.id,'的邀请做出回应');
+    console.log(target.id, '对', inviter.id, '的邀请做出回应');
     // 规则：若 target 本轮攻击 inviter → 自动拒绝
     const targetAct = actionMap.get(target.id)?.action
     if (
@@ -286,16 +289,17 @@ export async function applyResolvedActions(
     ) {
       continue
     }
-    const response=await ollamaCooperateDecisionFn({
+    const response = await ollamaCooperateDecisionFn({
       target,
       inviter,
       envInit,
       envRound,
+      sessionId,
     })
     if (
       response === "accept"
     ) {
-      console.log(inviter.id,'和',target.id,'达成合作');
+      console.log(inviter.id, '和', target.id, '达成合作');
       coopAccepted.add(coRelationKey(inviter.id, target.id))
       upsertCoRelation(inviter.id, target.id, envRound.round, relMap)
       exposure.set(inviter.id, "medium")
@@ -314,8 +318,8 @@ export async function applyResolvedActions(
         },
       )
     }
-    console.log(inviter.id,'和',target.id,'合作失败',response);
-    
+    console.log(inviter.id, '和', target.id, '合作失败', response);
+
   }
 
   // ═══════════════════════════════════════
@@ -619,6 +623,8 @@ export type SimulateRoundResult = {
   agentActions: AgentAction[]
   sourceLineData: SourceLineData
   agentAliveRound: AgentAliveRoundData[]
+  /** 后端结算回写的本局最新记忆，供热力图与主持人事实使用 */
+  agentsMemory: AgentMemory[]
 }
 
 // ─────────────────────────────────────────────────
@@ -632,7 +638,7 @@ export async function simulateRound(
   context: RoundContext,
   decisionFn?: DecisionFn,
 ): Promise<SimulateRoundResult> {
-  const { agents, envInit, envRound, agentActions, agentAliveRound } = context
+  const { agents, envInit, envRound, agentActions, agentAliveRound, sessionId } = context
 
   const actions = await resolveRoundActions(context, decisionFn)
   const nextAgentActions = recordAgentActions(
@@ -646,21 +652,19 @@ export async function simulateRound(
   console.log("[Simulation] state(before):", serializeAgents(agents))
 
   const { agents: afterActions, coRelations: nextCoRelations, socialEvents } =
-    await applyResolvedActions(agents, actions, envInit, envRound)
+    await applyResolvedActions(agents, actions, envInit, envRound, sessionId)
 
   const newAgents = applySurvivalRules(afterActions)
   console.log("[Simulation] socialEvents:", socialEvents)
 
-  useAgentMemoStore.getState().updateAllMemoState(
-    {
-      agentsBefore: agents,
-      agentsAfter: newAgents,
-      actions,
-      round: envRound.round
-    },
-    socialEvents,
-  )
-  console.log("[Simulation] agentsMemory:", useAgentMemoStore.getState().agentsMemory)
+  // 记忆由后端按 sessionId 维护：提交本轮结算结果并取回最新记忆
+  const agentsMemory = await commitRound(sessionId, {
+    agentsBefore: agents,
+    agentsAfter: newAgents,
+    actions,
+    round: envRound.round,
+    events: socialEvents,
+  })
 
   const nextEnvRound = computeNextEnvRound(
     envRound,
@@ -684,5 +688,6 @@ export async function simulateRound(
     agentActions: nextAgentActions,
     sourceLineData,
     agentAliveRound: nextAgentAliveRound,
+    agentsMemory,
   }
 }

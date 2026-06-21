@@ -1,4 +1,4 @@
-import type { AgentMemory } from "../memoryManagement/memoTypes"
+import type { AgentMemory } from "../types/memoTypes"
 import type { AgentRelationSnapshot, CoRelation } from "../types/EnvironmentType"
 
 const RELATION_MIN = -100

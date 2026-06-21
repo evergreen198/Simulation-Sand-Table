@@ -1,7 +1,6 @@
-
-import type { Action } from "../../types/Action"
-import type { Agent } from "../../types/AgentType"
-import type { EnvironmentInitState, EnvironmentRoundState } from "../../types/EnvironmentType"
+import type { Action } from "../types/Action"
+import type { Agent } from "../types/AgentType"
+import type { EnvironmentInitState, EnvironmentRoundState } from "../types/EnvironmentType"
 
 // 决策上下文 —— 传给任意决策函数的标准化输入
 export type DecisionInput = {
@@ -9,6 +8,8 @@ export type DecisionInput = {
   agents: Agent[]
   envInit: EnvironmentInitState
   envRound: EnvironmentRoundState
+  /** 会话 id：后端据此读取该局记忆构建 prompt */
+  sessionId: string
 }
 
 // 决策输出 —— 任意决策函数返回的标准化结果
@@ -37,4 +38,4 @@ export type DecisionError =
   | { type: "EXECUTION_ERROR"; message: string }
 
 // 决策函数签名 —— 未来外部 agent 只需实现此签名
-export type DecisionFn = (input: DecisionInput) => Action|Promise<Action>
+export type DecisionFn = (input: DecisionInput) => Action | Promise<Action>

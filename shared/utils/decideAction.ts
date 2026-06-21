@@ -48,7 +48,7 @@ export function decideAction(
   const gatherScore =
     greed * envRound.currentSource * 0.1 -
     riskLevel * (1 - risk) * 0.2 -
-    resourceScarcity * 0.5 
+    resourceScarcity * 0.5
 
   // =========================
   // attack
@@ -68,7 +68,7 @@ export function decideAction(
       riskCost -
       revengeRisk +
       greed * 0.3 +
-      (target.state.resource < resource ? 0.2 : -0.2) 
+      (target.state.resource < resource ? 0.2 : -0.2)
 
     attackTarget = target.id
   }
@@ -92,7 +92,7 @@ export function decideAction(
       baseGain -
       betrayalRisk +
       social * 0.5 +
-      (agent.goal === "survive" ? 0.3 : 0) 
+      (agent.goal === "survive" ? 0.3 : 0)
 
     coopTarget = target.id
   }
@@ -103,14 +103,14 @@ export function decideAction(
   const defendScore =
     riskLevel * (1 - risk) +
     (hp < 30 ? 0.5 : 0) +
-    (resource < 20 ? 0.3 : 0) 
+    (resource < 20 ? 0.3 : 0)
 
   // =========================
   // wait
   // =========================
   const waitScore =
     (agent.goal === "survive" ? 0.3 : 0) -
-    aggression * 0.2 
+    aggression * 0.2
 
   // =========================
   // 选最大

@@ -20,7 +20,7 @@ export type HostAgentSnapshot = {
 
 /**
  * 单回合结构化事实（代码提取，传给 LLM）
- * 入参来源：useStore + useAgentMemo 在 tick 结算后
+ * 入参来源：useStore + 后端记忆 在 tick 结算后
  */
 export type HostRoundFacts = {
   round: number

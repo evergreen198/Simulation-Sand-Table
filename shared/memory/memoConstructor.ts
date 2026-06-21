@@ -1,24 +1,20 @@
 import type {
-  AgentRoundMemory,
-  AgentSocialMemory,
-  AgentMemory,
-  SocialMemoryPattern,
-} from "./memoTypes";
+    AgentRoundMemory,
+    AgentSocialMemory,
+    AgentMemory,
+    SocialMemoryPattern,
+} from "../types/memoTypes";
 import type { Agent } from "../types/AgentType";
 import type { Action } from "../types/Action";
 
 export const MAX_ROUND_MEMORY_LENGTH = 50
 export const MAX_SOCIAL_MEMORY_LENGTH = 30
 
-//构建agent记忆的函数和agent记忆库
-//构造初始记忆函数：
-//在模拟中，通过map函数遍历agentActions，并调用constructAgentMemory函数构造初始记忆
-/*
-*@param agentId:string
-*@param agents:Agent[]
-*@param agentActions: AgentAction[]
-*@returns AgentMemory
-*/
+/**
+ * 构造单个 agent 的空记忆
+ * @param agentId 目标 agent id
+ * @returns 初始化后的 AgentMemory
+ */
 export function constructAgentMemory(agentId: string): AgentMemory {
     return {
         agentId,
@@ -33,16 +29,16 @@ export function constructAgentMemory(agentId: string): AgentMemory {
         roundMemory: [],
     };
 }
-//更新记忆函数：
-//在模拟中，通过map函数遍历agentActions，并调用addAgentMemory函数更新记忆
-/*
-*@param oldMemory:AgentMemory
-*param agentBeforeState:Agent
-*param agentAfterState:Agent
-*@param round:number
-*@param action:Action
-*@returns AgentRoundMemory[]
-*/
+
+/**
+ * 追加一条回合记忆（超出上限时滑动丢弃最早一条）
+ * @param oldMemory 旧回合记忆数组
+ * @param agentBeforeState 行动前 agent 状态
+ * @param agentAfterState 行动后 agent 状态
+ * @param action 本回合执行的行动
+ * @param round 回合号
+ * @returns 更新后的回合记忆数组
+ */
 export function updateAgentRoundMemory(
     oldMemory: AgentRoundMemory[],
     agentBeforeState: Agent,
@@ -54,7 +50,7 @@ export function updateAgentRoundMemory(
         ...oldMemory.slice(Math.max(0, oldMemory.length - MAX_ROUND_MEMORY_LENGTH + 1)),
         {
             round,
-            action:structuredClone(action),
+            action: structuredClone(action),
             beforeState: {
                 hp: agentBeforeState.state.hp,
                 resource: agentBeforeState.state.resource,
@@ -68,15 +64,14 @@ export function updateAgentRoundMemory(
         }]
 }
 
-//更新合作记忆函数：
-//在模拟中，通过map函数遍历agentActions，并调用updateCooperateMemory函数更新合作记忆
-/*
-*@param pattern: SocialMemoryPattern
-*@param initiatorAgentId:string
-*@param round:number
-*@param oldSocialMemory:AgentSocialMemory
-*@returns AgentSocialMemory
-*/
+/**
+ * 追加一条社交记忆（按 pattern 分桶，超出上限时滑动丢弃最早一条）
+ * @param pattern 社交记忆类型（attack_to / cooperate_by 等）
+ * @param initiatorAgentId 关系另一方 id
+ * @param round 回合号
+ * @param oldSocialMemory 旧社交记忆
+ * @returns 更新后的社交记忆
+ */
 export function updateCooperateMemory(
     pattern: SocialMemoryPattern,
     initiatorAgentId: string,

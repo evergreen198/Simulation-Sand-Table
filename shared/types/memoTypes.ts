@@ -1,4 +1,4 @@
-import type { Action } from "../types/Action";
+import type { Action } from "./Action";
 //agent存储的完整记忆
 export interface AgentRoundMemory {
     round: number,

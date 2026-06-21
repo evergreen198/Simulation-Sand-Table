@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "../ui/select"
 import { Checkbox } from "../ui/checkbox"
-import type { Agent } from "../../types/AgentType"
+import type { Agent } from "../../../../shared/types/AgentType"
 import { Label } from "../ui/label"
 import { useStore } from "../../store/useStore"
 import {

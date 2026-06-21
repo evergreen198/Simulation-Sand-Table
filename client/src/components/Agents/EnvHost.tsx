@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react"
 import { Globe2 } from "lucide-react"
-import type { EnvironmentInitState } from "../../types/EnvironmentType"
+import type { EnvironmentInitState } from "../../../../shared/types/EnvironmentType"
 import {
   Select,
   SelectContent,
@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "../ui/select"
 import { cloneAgent, useStore } from "../../store/useStore"
-import { agentA, agentB, agentC, agentD } from "../../types/AgentType"
+import { agentA, agentB, agentC, agentD } from "../../../../shared/types/AgentType"
 import {
   ParamSlider,
   SettingPanel,
@@ -32,13 +32,13 @@ const ENV_SLIDERS: {
   >
   label: string
 }[] = [
-  { key: "resourceTotal", label: "总资源量" },
-  { key: "regenerationRate", label: "资源再生速度" },
-  { key: "competitionReward", label: "竞争收益" },
-  { key: "cooperationReward", label: "合作收益" },
-  { key: "betrayalBonus", label: "背叛收益" },
-  { key: "riskLevel", label: "外部风险" },
-]
+    { key: "resourceTotal", label: "总资源量" },
+    { key: "regenerationRate", label: "资源再生速度" },
+    { key: "competitionReward", label: "竞争收益" },
+    { key: "cooperationReward", label: "合作收益" },
+    { key: "betrayalBonus", label: "背叛收益" },
+    { key: "riskLevel", label: "外部风险" },
+  ]
 
 function EnvHost() {
   const [resourceTotal, setResourceTotal] = useState(75)

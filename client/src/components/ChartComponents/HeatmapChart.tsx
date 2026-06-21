@@ -1,10 +1,10 @@
 import { useMemo, useEffect, useState } from "react"
 import { useStore } from "../../store/useStore"
-import type { AgentRelationSnapshot } from "../../types/EnvironmentType"
+import type { AgentRelationSnapshot } from "../../../../shared/types/EnvironmentType"
 import {
   stageToHeatColor,
   valueToRelationStage,
-} from "../../relation/relationMatrix"
+} from "../../../../shared/relation/relationMatrix"
 
 const EMPTY_RELATIONS: AgentRelationSnapshot = {
   memberIds: [],

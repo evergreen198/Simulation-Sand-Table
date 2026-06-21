@@ -1,19 +1,16 @@
-import type { AgentMemory, SocialMemoryPattern } from "../memoryManagement/memoTypes"
-import { socialMemoryPatternList } from "../memoryManagement/memoTypes"
-import type { Agent } from "../types/AgentType"
-import type { Action } from "../types/Action"
+import type { AgentMemory, SocialMemoryPattern } from "../../../shared/types/memoTypes"
+import { socialMemoryPatternList } from "../../../shared/types/memoTypes"
+import type { Agent } from "../../../shared/types/AgentType"
 import type {
   ActionCounts,
   HostAgentSnapshot,
   HostFinalFacts,
-  HostFinalSummary,
   HostGlobalSituation,
   HostRoundFacts,
-  HostRoundSummary,
   HostWinners,
-} from "./hostTypes"
+} from "../../../shared/host/host-types"
 import type { AgentAction, AgentAliveRoundData, SimulateRoundResult } from "../store/simulation"
-import type { EnvironmentInitState, EnvironmentRoundState } from "../types/EnvironmentType"
+import type { EnvironmentInitState, EnvironmentRoundState } from "../../../shared/types/EnvironmentType"
 
 const PATTERN_LABEL: Record<SocialMemoryPattern, string> = {
   attack_by: "被攻击",
@@ -22,15 +19,6 @@ const PATTERN_LABEL: Record<SocialMemoryPattern, string> = {
   betray_to: "背叛",
   cooperate_by: "被合作",
   cooperate_to: "发起合作",
-}
-
-/** 将 action 格式化为可读字符串 */
-function formatAction(action: Action | null): string {
-  if (!action) return "无行动"
-  if (action.type === "attack" || action.type === "cooperate") {
-    return `${action.type} → ${action.target}`
-  }
-  return action.type
 }
 
 /** 统计指定回合各 agent 的行动计数 */
@@ -418,38 +406,5 @@ export function buildFinalFacts(
     globalSituation: buildGlobalSituation(agents, envInit, envRound, agentActions),
     specialEvents: collectAllSpecialEvents(agentsMemory),
     agentSnapshots,
-  }
-}
-
-/** 代码层最小回合摘要（Ollama 失败时使用） */
-export function fallbackRoundSummary(facts: HostRoundFacts): HostRoundSummary {
-  const dynamics: Record<string, string> = {}
-  for (const s of facts.agentSnapshots) {
-    dynamics[s.id] = `${s.alive ? "存活" : "阵亡"}，HP ${s.hp}，资源 ${s.resource}，行动 ${formatAction(s.action)}`
-  }
-  const summary =
-    `第 ${facts.round} 回合：${facts.aliveCount} 名 agent 存活，` +
-    `环境资源 ${facts.currentSource}/${facts.resourceTotal}。`
-  return {
-    round: facts.round,
-    summary,
-    events: facts.roundEvents,
-    memberDynamics: dynamics,
-  }
-}
-
-/** 代码层最小终局摘要（Ollama 失败时使用） */
-export function fallbackFinalSummary(
-  facts: HostFinalFacts,
-  winners: HostWinners,
-): HostFinalSummary {
-  const narrative =
-    `仿真共 ${facts.totalRounds} 回合。${facts.globalSituation.resourceStatus}。` +
-    `${facts.globalSituation.leader}。${facts.globalSituation.tension}。`
-  return {
-    globalSituation: facts.globalSituation,
-    specialEvents: facts.specialEvents,
-    winners,
-    narrative,
   }
 }

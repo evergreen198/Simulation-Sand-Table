@@ -9,8 +9,8 @@ import {
   TextStyle,
 } from "pixi.js"
 import { Viewport } from "pixi-viewport"
-import type { Action } from "../types/Action"
-import type { Agent } from "../types/AgentType"
+import type { Action } from "../../../shared/types/Action"
+import type { Agent } from "../../../shared/types/AgentType"
 import { useStore } from "../store/useStore"
 
 /** 固定世界尺寸（world coordinates） */
@@ -508,13 +508,13 @@ export default function SandTableSection() {
       const agentLayer = new Container()
       const fxLayer = new Container()
 
-      ;[mapLayer, resourceLayer, haloLayer, relationLayer, agentLayer, fxLayer].forEach(
-        (c, i) => {
-          c.zIndex = i
-          c.eventMode = "none"
-          c.interactiveChildren = false
-        },
-      )
+        ;[mapLayer, resourceLayer, haloLayer, relationLayer, agentLayer, fxLayer].forEach(
+          (c, i) => {
+            c.zIndex = i
+            c.eventMode = "none"
+            c.interactiveChildren = false
+          },
+        )
       viewport.sortableChildren = true
       viewport.addChild(mapLayer, resourceLayer, haloLayer, relationLayer, agentLayer, fxLayer)
 

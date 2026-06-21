@@ -1,9 +1,9 @@
-import type { Action } from "../../types/Action"
+import type { Action } from "../../../../shared/types/Action"
 import type {
   DecisionError,
   DecisionInput,
   DecisionOutput,
-} from "./decisionInterface"
+} from "../../../../shared/llm/decision-types"
 
 // ============================================================
 // 合法 Action.type 集合

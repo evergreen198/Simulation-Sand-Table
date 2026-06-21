@@ -1,10 +1,10 @@
 import { create } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
-import type { Agent } from "../types/AgentType"
+import type { Agent } from "../../../shared/types/AgentType.ts"
 import type {
   EnvironmentInitState,
   EnvironmentRoundState,
-} from "../types/EnvironmentType"
+} from "../../../shared/types/EnvironmentType.ts"
 import type {
   AgentAction,
   AgentAliveRoundData,
@@ -12,14 +12,13 @@ import type {
 } from "./simulation"
 import { createRoundContext, simulateRound } from "./simulation"
 import {
-  // ollamaDecisionFn,
+  ollamaDecisionFn,
   ollamaEnvFinalSummaryFn,
   ollamaEnvRoundSummaryFn,
+  initSession,
 } from "../llmClient.ts"
-import { ollamaDecisionFn } from "../llmClient"
-import type { AgentLLMConfig } from "../OllamaAgents/OllamaAgentsSetting"
-import { agentLLMMap } from "../OllamaAgents/OllamaAgentsSetting"
-import useAgentMemoStore from "./useAgentMemo"
+import type { AgentLLMConfig } from "../../../shared/llm/ollama-config"
+import { agentLLMMap } from "../../../shared/llm/ollama-config"
 import useEnvMemoStore from "./useEnvMemo"
 import {
   buildFinalFacts,
@@ -29,7 +28,7 @@ import {
 import {
   computeRelationSnapshot,
   createEmptyRelationSnapshot,
-} from "../relation/relationMatrix"
+} from "../../../shared/relation/relationMatrix.ts"
 /** 深拷贝参与仿真的 Agent，避免改写模板对象 */
 export function cloneAgent(a: Agent): Agent {
   return structuredClone(a)
@@ -45,6 +44,8 @@ type Store = {
   totalRound: number
   sourceLineData: SourceLineData[]
   agentAliveRound: AgentAliveRoundData[]
+  /** 当前局会话 id：决策与记忆均按此定位后端该局记忆 */
+  sessionId: string
   /** UI：是否勾选「启用自定义成员」 */
   customAgentEnabled: boolean
   /** 用户在 AgentsSetting 确认后的自定义 Agent（id 为用户输入名称） */
@@ -81,6 +82,7 @@ export const useStore = create<Store>()(
     totalRound: 0,
     sourceLineData: [],
     agentAliveRound: [],
+    sessionId: "",
     customAgentEnabled: false,
     customAgent: null,
     setCustomAgentEnabled: (enabled) => set({ customAgentEnabled: enabled }),
@@ -89,9 +91,12 @@ export const useStore = create<Store>()(
       agentLLMMap[id] = config
     },
     init: (agents, envInit, totalRound) => {
-      useAgentMemoStore.getState().init(agents.map((a) => a.id))
       useEnvMemoStore.getState().init()
       const memberIds = agents.map(a => a.id)
+      const sessionId = crypto.randomUUID()
+      initSession(sessionId, memberIds).catch(err =>
+        console.error("[Store] 会话初始化失败", err),
+      )
       set(() => ({
         agents,
         envInit,
@@ -106,6 +111,7 @@ export const useStore = create<Store>()(
         },
         agentActions: createAgentActions(agents),
         totalRound,
+        sessionId,
         sourceLineData: [{
           round: '0',
           Env: envInit.resourceTotal,
@@ -121,7 +127,7 @@ export const useStore = create<Store>()(
       const context = createRoundContext(state)
       const result = await simulateRound(context, ollamaDecisionFn)
 
-      const agentsMemory = useAgentMemoStore.getState().agentsMemory
+      const agentsMemory = result.agentsMemory
       const memberIds = result.agents.map(a => a.id)
 
       set((current) => ({
